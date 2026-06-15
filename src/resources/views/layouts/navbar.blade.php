@@ -138,13 +138,72 @@
             </a>
         @endif
 
-        {{-- User --}}
-        <div class="flex items-center gap-2 pl-3 border-l border-gray-100">
-            <div class="text-right hidden sm:block">
-                <p class="text-sm font-semibold text-gray-700">{{ auth()->user()->name }}</p>
-            </div>
-            <div class="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm">
-                {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+      {{-- User --}}
+        <div class="relative" x-data="{ open: false }">
+            <button @click="open = !open"
+                class="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl hover:bg-violet-50 transition-all duration-200 group">
+                @if(auth()->user()->avatar)
+                    <img src="{{ asset('storage/' . auth()->user()->avatar) }}"
+                        class="w-8 h-8 rounded-lg object-cover flex-shrink-0">
+                @else
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm text-white flex-shrink-0"
+                        style="background: linear-gradient(135deg, #7c6fef, #a78bfa);">
+                        {{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 1)) }}
+                    </div>
+                @endif
+                <div class="hidden lg:block text-left">
+                    <p class="text-sm font-semibold text-gray-800 leading-tight">{{ auth()->user()->name ?? 'User' }}</p>
+                    <p class="text-xs text-gray-400 leading-tight">{{ ucfirst(auth()->user()->role) }}</p>
+                </div>
+                <svg class="w-3.5 h-3.5 text-gray-400 transition-transform duration-200 group-hover:text-violet-500"
+                    :class="open ? 'rotate-180' : ''"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+
+            {{-- Dropdown --}}
+            <div x-show="open"
+                x-transition:enter="transition ease-out duration-150"
+                x-transition:enter-start="opacity-0 scale-95 -translate-y-1"
+                x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                x-transition:leave="transition ease-in duration-100"
+                x-transition:leave-start="opacity-100 scale-100"
+                x-transition:leave-end="opacity-0 scale-95"
+                @click.outside="open = false"
+                class="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
+                style="box-shadow: 0 10px 40px rgba(124, 111, 239, 0.15);">
+
+                {{-- User info --}}
+                <div class="px-4 py-3 border-b border-gray-100">
+                    <p class="text-sm font-bold text-gray-800">{{ auth()->user()->name }}</p>
+                    <p class="text-xs text-gray-400 truncate">{{ auth()->user()->email }}</p>
+                </div>
+
+                {{-- Menu --}}
+                <div class="py-1.5">
+                    <a href="{{ route('profile.index') }}"
+                        class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 transition-colors duration-150">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                        Profil Saya
+                    </a>
+                </div>
+
+                {{-- Logout --}}
+                <div class="border-t border-gray-100 py-1.5">
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button type="submit"
+                            class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors duration-150 text-left">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                            </svg>
+                            Keluar
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
 
