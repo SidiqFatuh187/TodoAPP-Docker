@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TodoController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\DueDateController;
+use App\Http\Controllers\ProfileController;
 
 use Illuminate\Support\Facades\Route;
 
@@ -70,6 +71,14 @@ Route::middleware('auth')->group(function () {
     Route::delete('/notification/{id}',        [NotificationController::class, 'destroy'])->name('notification.destroy');
 
     Route::get('/due-dates', [DueDateController::class, 'index'])->name('due-dates.index');
+
+    Route::prefix('profile')->name('profile.')->group(function () {
+    Route::get('/', [ProfileController::class, 'index'])->name('index');
+    Route::get('/edit', [ProfileController::class, 'edit'])->name('edit');
+    Route::put('/update', [ProfileController::class, 'update'])->name('update');
+    Route::get('/password', [ProfileController::class, 'passwordForm'])->name('password');
+    Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
+    });
 });
 
 // Logout route
