@@ -9,6 +9,7 @@ use App\Http\Controllers\TodoController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\DueDateController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PasswordResetController;
 
 use Illuminate\Support\Facades\Route;
 
@@ -79,7 +80,19 @@ Route::middleware('auth')->group(function () {
     Route::get('/password', [ProfileController::class, 'passwordForm'])->name('password');
     Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
     });
-});
+
+ });
+    
+    // Password Reset Routes 
+    Route::prefix('password')->name('password.')->group(function () {
+        Route::get('/forgot', [PasswordResetController::class, 'forgot'])->name('forgot');
+        Route::post('/forgot', [PasswordResetController::class, 'sendOtp'])->name('forgot.send');
+        
+        Route::get('/verify', [PasswordResetController::class, 'verify'])->name('verify');
+        Route::post('/verify', [PasswordResetController::class, 'verifyOtp'])->name('verify.submit');
+        Route::get('/reset', [PasswordResetController::class, 'reset'])->name('reset');
+        Route::post('/reset', [PasswordResetController::class, 'updatePassword'])->name('reset.submit');
+    });
 
 // Logout route
 Route::post('/logout', [LoginController::class, 'destroy'])
