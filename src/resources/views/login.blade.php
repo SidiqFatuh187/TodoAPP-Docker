@@ -68,7 +68,12 @@
 
                        {{-- Password --}}
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-600 mb-1.5">Password</label>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="block text-sm font-medium text-gray-600">Password</label>
+                                <a href="#" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                                    Lupa password?
+                                </a>
+                            </div>
                             <div class="relative">
                                 <input
                                     type="password"
