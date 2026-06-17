@@ -10,6 +10,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\DueDateController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\SettingController;
 
 use Illuminate\Support\Facades\Route;
 
@@ -80,6 +81,18 @@ Route::middleware('auth')->group(function () {
     Route::get('/password', [ProfileController::class, 'passwordForm'])->name('password');
     Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
     });
+
+   
+    Route::get('/settings', [SettingController::class, 'index'])
+        ->name('settings.index');
+ 
+    
+    Route::post('/settings', [SettingController::class, 'update'])
+        ->name('settings.update');
+ 
+  
+    Route::post('/settings/notifications', [SettingController::class, 'updateNotifications'])
+        ->name('settings.notifications.update');
 
  });
     
