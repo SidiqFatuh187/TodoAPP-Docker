@@ -36,7 +36,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: 'src/package-lock.json'
 
@@ -66,4 +66,5 @@ jobs:
           APP_ENV: testing
           DB_CONNECTION: sqlite
           DB_DATABASE: src/database/testing.sqlite
+          APP_KEY: base64:testingkeytestingkeytestingkey==
         run: php artisan test --verbose
