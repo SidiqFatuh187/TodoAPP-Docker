@@ -13,6 +13,8 @@ export default defineConfig({
                 'resources/js/todo-index.js',
                 'resources/js/navbar-search.js',
                 'resources/js/notifications.js',
+                'resources/js/login.js',
+                'resources/js/register.js',
             ],
             refresh: true,
             fonts: [
