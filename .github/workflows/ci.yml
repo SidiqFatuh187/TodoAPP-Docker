@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mbstring, pdo_sqlite, pdo_mysql, xml, bcmath
+          ini-values: post_max_size=256M, memory_limit=2G
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('src/composer.lock') }}
+
+      - name: Install Composer deps
+        working-directory: src
+        run: composer install --no-progress --no-suggest --prefer-dist --optimize-autoloader
+        env:
+          COMPOSER_ALLOW_SUPERUSER: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Cache NPM
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('src/package-lock.json') }}
+
+      - name: Install JS deps & Build assets
+        working-directory: src
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare sqlite DB
+        run: |
+          mkdir -p src/database
+          touch src/database/testing.sqlite
+
+      - name: Run migrations
+        working-directory: src
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: src/database/testing.sqlite
+          APP_KEY: base64:testingkeytestingkeytestingkey==
+        run: php artisan migrate --database=sqlite --force
+
+      - name: Run tests
+        working-directory: src
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: src/database/testing.sqlite
+        run: php artisan test --verbose
