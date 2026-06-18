@@ -57,7 +57,7 @@ jobs:
           APP_ENV: testing
           DB_CONNECTION: sqlite
           DB_DATABASE: ${{ github.workspace }}/src/database/testing.sqlite
-          APP_KEY: base64:testingkeytestingkeytestingkey==
+          APP_KEY: base64:fuM/JSRWoKKbvtc6YnoPqWDVdCaXYzSlEb0WV/tt6jM=
         run: php artisan migrate --database=sqlite --force
 
       - name: Run tests
@@ -66,5 +66,5 @@ jobs:
           APP_ENV: testing
           DB_CONNECTION: sqlite
           DB_DATABASE: ${{ github.workspace }}/src/database/testing.sqlite
-          APP_KEY: base64:testingkeytestingkeytestingkey==
+          APP_KEY: base64:fuM/JSRWoKKbvtc6YnoPqWDVdCaXYzSlEb0WV/tt6jM=
         run: php artisan test
