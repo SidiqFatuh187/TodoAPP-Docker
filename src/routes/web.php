@@ -41,7 +41,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         Route::post('/register', [RegisterController::class, 'store'])->name('register.store');
     });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'timezone'])->group(function () {
         // dashboard route
      Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
