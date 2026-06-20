@@ -12,11 +12,15 @@
     <x-modal-delete />
 
     @include('layouts.sidebar')
-    
-    <div class="flex-1 ml-64 flex flex-col min-h-screen">
+
+    {{-- Overlay (mobile only, shown when sidebar open) --}}
+    <div id="sidebar-overlay" onclick="toggleSidebar()"
+        class="hidden fixed inset-0 bg-black/40 z-20 md:hidden"></div>
+
+    <div class="flex-1 md:ml-64 flex flex-col min-h-screen w-full">
         @include('layouts.navbar')
-        
-        <main class="flex-1 p-6">
+
+        <main class="flex-1 p-4 md:p-6">
             @if(isset($title))
             <div class="mb-6">
                 <h3 class="text-xl font-bold text-gray-800">{{ $title }}</h3>
@@ -28,7 +32,7 @@
             @yield('content')
         </main>
     </div>
-    
+
     @stack('scripts')
 </body>
 </html>

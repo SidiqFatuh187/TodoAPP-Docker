@@ -1,20 +1,20 @@
-<header class="bg-white border-b border-gray-100 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
+<header class="bg-white border-b border-gray-100 px-4 md:px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
 
     {{-- Hamburger (mobile) --}}
-    <button onclick="toggleSidebar()" class="text-gray-500 hover:text-gray-700 md:hidden">
+    <button onclick="toggleSidebar()" class="text-gray-500 hover:text-gray-700 md:hidden shrink-0">
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
     </button>
 
     {{-- Page Title --}}
-    <h2 class="text-base font-semibold text-gray-700">@yield('page-title', 'CLARO')</h2>
+    <h2 class="text-base font-semibold text-gray-700 truncate">@yield('page-title', 'CLARO')</h2>
 
     {{-- Right --}}
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2 md:gap-4">
 
-        {{-- Search --}}
-        <div class="relative" id="search-wrapper">
+        {{-- Search (hidden on mobile) --}}
+        <div class="relative hidden md:block" id="search-wrapper">
             <form action="{{ route('todo.index') }}" method="GET" autocomplete="off">
                 <input
                     type="text"
@@ -35,6 +35,13 @@
                 <div id="search-results" class="py-1"></div>
             </div>
         </div>
+
+        {{-- Search icon only (mobile) --}}
+        <a href="{{ route('todo.index') }}" class="text-gray-400 hover:text-gray-600 md:hidden">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+        </a>
 
         {{-- Bell Icon + Notification Popup --}}
         @php
@@ -57,7 +64,7 @@
 
             {{-- Popup --}}
             <div id="notif-dropdown"
-                class="hidden absolute right-0 top-full mt-2 w-80 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
+                class="hidden absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-80 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
 
                 {{-- Header --}}
                 <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
@@ -121,7 +128,7 @@
             </div>
         </div>
 
-        <a href="{{ route('dashboard') }}" class="text-gray-400 hover:text-gray-600">
+        <a href="{{ route('dashboard') }}" class="text-gray-400 hover:text-gray-600 hidden sm:block">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
@@ -130,7 +137,7 @@
         {{-- Admin Panel Button --}}
         @if(auth()->user()->role === 'admin')
             <a href="{{ route('admin.index') }}"
-               class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
+               class="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
@@ -141,7 +148,7 @@
       {{-- User --}}
         <div class="relative" x-data="{ open: false }">
             <button @click="open = !open"
-                class="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl hover:bg-violet-50 transition-all duration-200 group">
+                class="flex items-center gap-2.5 pl-1 pr-2 md:pr-3 py-1 rounded-xl hover:bg-violet-50 transition-all duration-200 group">
                 @if(auth()->user()->avatar)
                     <img src="{{ asset('storage/' . auth()->user()->avatar) }}"
                         class="w-8 h-8 rounded-lg object-cover flex-shrink-0">
@@ -155,7 +162,7 @@
                     <p class="text-sm font-semibold text-gray-800 leading-tight">{{ auth()->user()->name ?? 'User' }}</p>
                     <p class="text-xs text-gray-400 leading-tight">{{ ucfirst(auth()->user()->role) }}</p>
                 </div>
-                <svg class="w-3.5 h-3.5 text-gray-400 transition-transform duration-200 group-hover:text-violet-500"
+                <svg class="w-3.5 h-3.5 text-gray-400 transition-transform duration-200 group-hover:text-violet-500 hidden sm:block"
                     :class="open ? 'rotate-180' : ''"
                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
@@ -189,6 +196,15 @@
                         </svg>
                         Profil Saya
                     </a>
+                    @if(auth()->user()->role === 'admin')
+                    <a href="{{ route('admin.index') }}"
+                        class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-violet-50 hover:text-violet-700 transition-colors duration-150 lg:hidden">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                        Admin Panel
+                    </a>
+                    @endif
                 </div>
 
                 {{-- Logout --}}
