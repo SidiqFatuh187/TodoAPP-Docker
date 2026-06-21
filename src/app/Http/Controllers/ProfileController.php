@@ -30,7 +30,7 @@ class ProfileController extends Controller
         $request->validate([
             'name'   => 'required|string|max:255',
             'email'  => 'required|email|unique:users,email,' . Auth::id(),
-            'phone'  => 'nullable|string|max:20',
+            'phone' => 'nullable|required_if:wa_notification,1|string|max:20',
             'bio'    => 'nullable|string|max:500',
             'avatar' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ], [

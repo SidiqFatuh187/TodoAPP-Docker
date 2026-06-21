@@ -80,8 +80,26 @@
                         <p class="text-sm text-gray-700 break-words">{{ auth()->user()->name ?? '-' }}</p>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">No. Telepon</p>
-                        <p class="text-sm text-gray-700">{{ auth()->user()->phone ?? '-' }}</p>
+                        <p class="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">No. WhatsApp</p>
+                        @if(auth()->user()->phone)
+                            <p class="text-sm text-gray-700 flex items-center gap-1.5">
+                                {{ auth()->user()->phone }}
+                                <svg class="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                            </p>
+                        @else
+                            <p class="text-sm">
+                                <a href="{{ route('profile.edit') }}" class="text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    Nomor WA belum diisi
+                                </a>
+                                    Kamu tidak akan menerima reminder deadline via WhatsApp.
+                                </a>
+                            </p>
+                        @endif
                     </div>
                     <div>
                         <p class="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Email</p>

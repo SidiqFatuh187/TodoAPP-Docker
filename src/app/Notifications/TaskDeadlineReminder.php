@@ -7,6 +7,9 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Http;
+use Carbon\Carbon;
+use App\Channels\WhatsappChannel;
 
 class TaskDeadlineReminder extends Notification
 {
@@ -26,8 +29,13 @@ class TaskDeadlineReminder extends Notification
      * @return array<int, string>
      */
     public function via(object $notifiable): array
-    {
-        return ['database'];
+    {   
+        $channels = ['database'];
+        if ($notifiable->phone){
+           $channels[] = WhatsappChannel::class;
+        }
+
+        return $channels;
     }
 
     /**
@@ -40,6 +48,35 @@ class TaskDeadlineReminder extends Notification
             'task_id' => $this->todo->id,
             'type'    => 'reminder',
         ];
+    }
+
+    public function toWhatsapp(object $notifiable): void
+    {
+        $timezone = $notifiable->timezone ?? 'Asia/Jakarta';
+        $deadline = Carbon::parse($this->todo->deadline)->setTimezone($timezone);
+
+        $priority = match($this->todo->priority) {
+            'high'   => '🔴 Tinggi',
+            'medium' => '🟡 Sedang',
+            'low'    => '🟢 Rendah',
+            default  => '-',
+        };
+
+        $message = "Halo *{$notifiable->name}*! 👋\n\n"
+            . "⏰ *Pengingat Deadline Besok*\n\n"
+            . "📌 *{$this->todo->title}*\n"
+            . ($this->todo->description ? "📝 {$this->todo->description}\n" : '')
+            . "🎯 Prioritas: {$priority}\n"
+            . "📅 Deadline: *{$deadline->format('d M Y, H:i')}*\n\n"
+            . "Segera selesaikan sebelum deadline ya! 💪\n\n"
+            . "_— Claro App_";
+
+        Http::withHeaders([
+            'Authorization' => config('services.fonnte.token'),
+        ])->post(config('services.fonnte.url'), [
+            'target'  => $notifiable->phone,
+            'message' => $message,
+        ]);
     }
 
 
