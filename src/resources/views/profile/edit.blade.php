@@ -76,25 +76,28 @@
                             <p class="mt-1.5 text-xs text-red-500">{{ $message }}</p>
                         @enderror
                     </div>
-
+                    
                     {{-- Email --}}
                     <div>
                         <label for="email" class="block text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Email</label>
                         <input type="email" id="email" name="email" value="{{ old('email', auth()->user()->email) }}"
-                            class="w-full px-4 py-2.5 rounded-xl border @error('email') border-red-400 bg-red-50 @else border-gray-200 @enderror text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        class="w-full px-4 py-2.5 rounded-xl border @error('email') border-red-400 bg-red-50 @else border-gray-200 @enderror text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                         @error('email')
-                            <p class="mt-1.5 text-xs text-red-500">{{ $message }}</p>
+                        <p class="mt-1.5 text-xs text-red-500">{{ $message }}</p>
                         @enderror
                     </div>
-
-                    {{-- Phone --}}
+                    
+                {{-- Phone --}}
                     <div>
                         <label for="phone" class="block text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">
-                            No. Telepon <span class="normal-case text-gray-300">(opsional)</span>
+                            No. WhatsApp <span class="normal-case text-amber-500 font-semibold">Wajib untuk notifikasi</span>
                         </label>
                         <input type="text" id="phone" name="phone" value="{{ old('phone', auth()->user()->phone) }}"
                             placeholder="08xxxxxxxxxx"
                             class="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        <p class="text-xs text-black mt-1.5 font-bold">
+                            *Ber sifat opsional. Isi nomor WA jika kamu ingin menerima reminder otomatis saat deadline mendekat.
+                        </p>
                     </div>
 
                     {{-- Bio --}}
