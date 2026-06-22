@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 
 class ProfileController extends Controller
 {
@@ -30,7 +31,7 @@ class ProfileController extends Controller
         $request->validate([
             'name'   => 'required|string|max:255',
             'email'  => 'required|email|unique:users,email,' . Auth::id(),
-            'phone' => 'nullable|required_if:wa_notification,1|string|max:20',
+            'phone' => 'nullable|digits_between:10,15',
             'bio'    => 'nullable|string|max:500',
             'avatar' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ], [
@@ -42,6 +43,7 @@ class ProfileController extends Controller
         ]);
 
         $user = Auth::user();
+        $oldPhone = $user->phone;
 
         try {
             if ($request->hasFile('avatar')) {
@@ -58,9 +60,46 @@ class ProfileController extends Controller
             $user->bio   = $request->bio;
             $user->save();
 
+            // Trigger welcome
+            if ($request->phone && !$oldPhone) {
+                $this->sendWhatsAppWelcome($request->phone, $user->name);
+            }
+            // Ganti nomer 
+            elseif ($request->phone && $oldPhone && $request->phone !== $oldPhone){
+                $this->sendWhatsAppConfirmChange($request->phone, $user->name);
+            }
+
             return redirect()->route('profile.index')->with('success', 'Profil berhasil diperbarui.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Gagal memperbarui profil, coba lagi.');
+        }
+    }
+
+    private function sendWhatsAppWelcome($phone, $name)
+    {
+        try {
+            Http::withHeaders([
+                'Authorization' => env('FONNTE_TOKEN'),
+            ])->post('https://api.fonnte.com/send', [
+                'target'  => $phone,
+                'message' => "Halo *{$name}*! 👋\n\nNomor WhatsApp kamu berhasil terhubung dengan *Claro App*.\n\nMulai sekarang kamu akan menerima pengingat otomatis setiap ada task yang mendekati deadline.\n\nBalas pesan ini dengan *OK* untuk memastikan notifikasi berjalan lancar 🎉",
+            ]);
+        } catch (\Exception $e) {
+            logger()->error('Gagal kirim WA welcome: ' . $e->getMessage());
+        }
+    }
+
+    private function sendWhatsAppConfirmChange($phone, $name)
+    {
+        try {
+            Http::withHeaders([
+                'Authorization' => env('FONNTE_TOKEN'),
+            ])->post('https://api.fonnte.com/send', [
+                'target'  => $phone,
+                'message' => "Halo *{$name}*! 👋\n\nNomor WhatsApp kamu di *Claro App* berhasil diperbarui.\n\nNotifikasi deadline akan dikirim ke nomor ini mulai sekarang ✅",
+            ]);
+        } catch (\Exception $e) {
+            logger()->error('Gagal kirim WA confirm change: ' . $e->getMessage());
         }
     }
 
