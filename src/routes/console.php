@@ -9,3 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('app:send-task-notifications')->dailyAt('07:00');
+Schedule::command('app:send-task-notifications')->dailyAt('06:00');
+Schedule::command('app:send-task-notifications')->dailyAt('05:00');
