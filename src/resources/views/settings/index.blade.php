@@ -125,18 +125,6 @@
                         </select>
                     </div>
 
-                    <div class="flex items-center justify-between py-2 gap-3">
-                        <div>
-                            <p class="text-sm text-gray-700">Mode Gelap</p>
-                            <p class="text-xs text-gray-400 mt-0.5">Gunakan tampilan gelap untuk aplikasi</p>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
-                            <input type="checkbox" name="dark_mode" value="1" class="sr-only peer" {{ (auth()->user()->dark_mode ?? false) ? 'checked' : '' }}>
-                            <div class="w-10 h-5.5 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-colors"></div>
-                            <div class="absolute left-0.5 top-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4.5"></div>
-                        </label>
-                    </div>
-
                     <button type="submit"
                         class="w-full sm:w-auto sm:self-start bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors">
                         Simpan Preferensi
