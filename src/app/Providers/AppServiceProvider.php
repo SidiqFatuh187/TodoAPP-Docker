@@ -18,7 +18,11 @@ class AppServiceProvider extends ServiceProvider
     }
 
     public function boot(): void
-    {
+    {   
+        if (config('app.env') === 'production') {
+        \URL::forceScheme('https');
+        }
+
         Event::listen(Login::class,  [LogUserActivity::class, 'handleLogin']);
         Event::listen(Logout::class, [LogUserActivity::class, 'handleLogout']);
 
