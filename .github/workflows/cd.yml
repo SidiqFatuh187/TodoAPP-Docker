@@ -76,7 +76,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
-            echo ${{ secrets.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 }} | docker login ghcr.io -u ${{ secrets.SidiqFatuh187 }} --password-stdin
+            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
             docker compose pull
             docker compose up -d --remove-orphans
             docker compose exec -T app php artisan migrate --force
