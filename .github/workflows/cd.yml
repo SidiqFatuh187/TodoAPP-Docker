@@ -2,7 +2,7 @@ name: CD
 
 on:
   workflow_run:
-    workflows: ["CI"]   # Tunggu CI lulus dulu
+    workflows: ["CI"]
     types: [completed]
     branches: [master]
 
@@ -38,7 +38,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}  # Tidak perlu buat token manual
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
         id: meta
@@ -53,9 +53,9 @@ jobs:
       - name: Build & Push image
         uses: docker/build-push-action@v5
         with:
-          context: ./src          # Sesuai struktur project kamu
+          context: ./src
           file: ./docker/php/Dockerfile
-          platforms: linux/amd64  # VPS Jakarta = amd64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -75,13 +75,28 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd ${{ secrets.DEPLOY_PATH }}
+            cd /var/www/claro
+
+            # Pull latest code
+            git pull origin master
+
+            # Login ke GHCR & pull image terbaru
             echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
             docker compose pull
+
+            # Rebuild & restart container
             docker compose up -d --remove-orphans
-            docker compose exec -T app php artisan migrate --force
-            docker compose exec -T app php artisan config:clear
-            docker compose exec -T app php artisan cache:clear
+
+            # Install dependencies & build assets
+            cd /var/www/claro/src
+            composer install --no-dev --optimize-autoloader
+            npm install && npm run build
+
+            # Artisan commands
+            docker exec todo_php php artisan migrate --force
+            docker exec todo_php php artisan config:clear
+            docker exec todo_php php artisan cache:clear
+            docker exec todo_php php artisan storage:link
 
       - name: Notify jika gagal
         if: failure()
