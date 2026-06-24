@@ -73,7 +73,7 @@
     @endif
 
     {{-- Empty State --}}
-    @if($overdue->isEmpty() && $today->isEmpty() && $tomorrow->isEmpty() && $thisWeek->isEmpty() && $later->isEmpty())
+   @if($overdue->isEmpty() && $today->isEmpty() && $tomorrow->isEmpty() && $later->isEmpty())
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
         <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <svg class="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
