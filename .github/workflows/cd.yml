@@ -1,10 +1,10 @@
-name: Build & Push
+name: CD
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]   # Tunggu CI lulus dulu
+    types: [completed]
     branches: [master]
-  release:
-    types: [published]
 
 permissions:
   contents: read
@@ -18,63 +18,71 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
 
-      - name: Set up Docker buildx
-        uses: docker/setup-buildx-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Login to GHCR
-        uses: docker/login-action@v2
+      - name: Login ke GHCR
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}  # Tidak perlu buat token manual
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=sha,prefix={{branch}}-
+            type=sha,prefix=master-
             type=semver,pattern={{version}}
 
-      - name: Build and push image
-        uses: docker/build-push-action@v4
+      - name: Build & Push image
+        uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./src          # Sesuai struktur project kamu
           file: ./docker/php/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/amd64  # VPS Jakarta = amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' && secrets.SSH_HOST != ''
+
     steps:
-      - name: Deploy to server via SSH
-        uses: appleboy/ssh-action@v0.1.10
+      - name: Deploy ke VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
+          port: ${{ secrets.SSH_PORT }}
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
+            echo ${{ secrets.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 }} | docker login ghcr.io -u ${{ secrets.SidiqFatuh187 }} --password-stdin
             docker compose pull
             docker compose up -d --remove-orphans
             docker compose exec -T app php artisan migrate --force
-            
-      - name: Notify deployment
+            docker compose exec -T app php artisan config:clear
+            docker compose exec -T app php artisan cache:clear
+
+      - name: Notify jika gagal
         if: failure()
-        run: echo "Deployment failed!"
+        run: echo "❌ Deployment CLARO gagal!"
