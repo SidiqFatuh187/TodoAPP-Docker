@@ -1,4 +1,4 @@
-function toggleNotif() {
+window.toggleNotif = function() {
     const dropdown = document.getElementById('notif-dropdown');
     dropdown.classList.toggle('hidden');
 }

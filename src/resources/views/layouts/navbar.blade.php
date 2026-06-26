@@ -224,8 +224,4 @@
         </div>
 
     </div>
-
-    @push('scripts')
-        <script src="{{ Vite::asset('resources/js/notifications.js') }}"></script>
-    @endpush
 </header>
