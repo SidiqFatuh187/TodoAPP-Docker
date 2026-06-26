@@ -47,6 +47,8 @@ services:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_USER: todo_user
       MYSQL_PASSWORD: todo_pass
+    ports:
+      - "127.0.0.1:3306:3306"
     volumes:
       - todo_mysql_data:/var/lib/mysql
     networks:
