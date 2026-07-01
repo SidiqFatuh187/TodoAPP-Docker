@@ -7,7 +7,7 @@
     @vite(['resources/css/app.css', 'resources/js/register.js'])
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 via-blue-200 to-indigo-300 p-4 gap-4">
-
+<x-terms-modal />
     <div class="w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex">
 
         {{-- Left Panel --}}
@@ -123,7 +123,7 @@
                     <div class="flex items-center gap-2 mb-4">
                         <input type="checkbox" name="terms" id="terms" class="w-4 h-4 accent-indigo-600" required>
                         <label for="terms" class="text-sm text-gray-500">
-                            I accept the <a href="#" class="text-indigo-600 hover:underline">Terms</a>
+                            I accept the <button type="button" onclick="openTermsModal()" class="text-indigo-600 hover:underline font-medium">Terms</button>
                         </label>
                     </div>
 
