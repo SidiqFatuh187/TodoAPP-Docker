@@ -295,4 +295,4 @@ Untuk perubahan besar, disarankan membuka *issue* terlebih dahulu untuk mendisku
 
 ## 📄 Lisensi
 
-Repository ini belum menyertakan file lisensi resmi. Jika proyek ini ditujukan untuk open source, disarankan menambahkan file `LICENSE` (mis. MIT) agar penggunaan ulang kode oleh pihak lain jelas secara hukum.
+Proyek ini menggunakan lisensi **MIT** — lihat file [LICENSE](LICENSE) untuk detail lengkap. Bebas digunakan, dimodifikasi, dan didistribusikan ulang, termasuk untuk keperluan komersial, selama menyertakan atribusi lisensi asli.
