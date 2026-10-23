@@ -12,20 +12,22 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Carbon\Carbon;
 
-#[Signature('app:send-task-notifications')]
+#[Signature('app:send-task-notifications {--timezone=Asia/Jakarta : Default timezone}')]
 #[Description('Send task overdue, due today, and deadline reminder notifications')]
 class SendTaskNotifications extends Command
 {
     public function handle()
     {
+        $defaultTz = $this->option('timezone') ?: 'Asia/Jakarta';
+
         // Overdue 
         Todo::with('user')
             ->where('status', '!=', 'completed')
             ->whereNotNull('deadline')
             ->where('deadline', '<', now()->startOfDay())
-            ->chunk(100, function ($todos) {
+            ->chunk(100, function ($todos) use ($defaultTz) {
                 foreach ($todos as $todo) {
-                    $timezone         = $todo->user->timezone ?? 'Asia/Jakarta';
+                    $timezone         = $todo->user->timezone ?? $defaultTz;
                     $userNow          = Carbon::now($timezone);
                     $deadlineUserTz   = Carbon::parse($todo->deadline)->setTimezone($timezone);
 
@@ -50,9 +52,10 @@ class SendTaskNotifications extends Command
         Todo::with('user')
             ->where('status', '!=', 'completed')
             ->whereNotNull('deadline')
-            ->chunk(100, function ($todos) {
+            ->whereBetween('deadline', [now()->subDays(1)->startOfDay(), now()->addDays(1)->endOfDay()])
+            ->chunk(100, function ($todos) use ($defaultTz) {
                 foreach ($todos as $todo) {
-                    $timezone         = $todo->user->timezone ?? 'Asia/Jakarta';
+                    $timezone         = $todo->user->timezone ?? $defaultTz;
                     $userNow          = Carbon::now($timezone);
                     $deadlineUserTz   = Carbon::parse($todo->deadline)->setTimezone($timezone);
 
@@ -77,9 +80,10 @@ class SendTaskNotifications extends Command
         Todo::with('user')
             ->where('status', '!=', 'completed')
             ->whereNotNull('deadline')
-            ->chunk(100, function ($todos) {
+            ->whereBetween('deadline', [now()->startOfDay(), now()->addDays(2)->endOfDay()])
+            ->chunk(100, function ($todos) use ($defaultTz) {
                 foreach ($todos as $todo) {
-                    $timezone         = $todo->user->timezone ?? 'Asia/Jakarta';
+                    $timezone         = $todo->user->timezone ?? $defaultTz;
                     $userNow          = Carbon::now($timezone);
                     $tomorrow         = $userNow->copy()->addDay()->toDateString();
                     $deadlineUserTz   = Carbon::parse($todo->deadline)->setTimezone($timezone);
