@@ -26,7 +26,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/category',    [AdminController::class, 'category'])->name('category');
     Route::get('/activity',      [AdminController::class, 'activity'])->name('activity');
     Route::get('/export',        [AdminController::class, 'export'])->name('export');
-    Route::delete('/activity/clear-all}', [AdminController::class, 'destroyAllActivitylogs'])->name('activity.clearAll');
+    Route::delete('/activity/clear-all', [AdminController::class, 'destroyAllActivitylogs'])->name('activity.clearAll');
     Route::delete('/activity/{activity}', [AdminController::class, 'destroyActivitylog'])->name('activity.destroy');
  
     Route::patch('/users/{user}/ban',   [AdminController::class, 'ban'])->name('users.ban');
@@ -86,13 +86,8 @@ Route::middleware(['auth', 'timezone'])->group(function () {
     Route::get('/settings', [SettingController::class, 'index'])
         ->name('settings.index');
  
-    
     Route::post('/settings', [SettingController::class, 'update'])
         ->name('settings.update');
- 
-  
-    Route::post('/settings/notifications', [SettingController::class, 'updateNotifications'])
-        ->name('settings.notifications.update');
 
  });
     

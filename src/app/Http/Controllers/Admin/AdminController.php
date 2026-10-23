@@ -124,13 +124,13 @@ class AdminController extends Controller
     {
         $activity->delete();
 
-        return back()->with('success', 'Activity log entry deleted successfully,.');
+        return back()->with('success', 'Activity log entry deleted successfully.');
     }
 
-    public function destroyAllActivitylogs(ActivityLog $activity)
+    public function destroyAllActivitylogs()
     {
-        $activity->truncate();
+        ActivityLog::truncate();
 
-        return back()->with('success', 'All Activity log entries deleted successfully.,');
+        return back()->with('success', 'All activity log entries deleted successfully.');
     }
 }
