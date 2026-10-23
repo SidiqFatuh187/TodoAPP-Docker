@@ -111,7 +111,7 @@
                         </div>
                     </div>
                     
-                    <a href="https://wa.me/6285764694530?text=Halo%20Claro%20App%2C%20aktifkan%20notifikasi%20saya" 
+                    <a href="https://wa.me/6285764694530?text=Halo%20Wassup%20Task%2C%20aktifkan%20notifikasi%20saya" 
                     target="_blank"
                     class="inline-flex items-center gap-2 mt-3 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-xl transition-colors">
                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">

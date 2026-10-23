@@ -8,7 +8,7 @@
     </button>
 
     {{-- Page Title --}}
-    <h2 class="text-base font-semibold text-gray-700 truncate">@yield('page-title', 'CLARO')</h2>
+    <h2 class="text-base font-semibold text-gray-700 truncate">@yield('page-title', 'Wassup Task')</h2>
 
     {{-- Right --}}
     <div class="flex items-center gap-2 md:gap-4">

@@ -17,8 +17,8 @@
         <div class="overflow-y-auto px-6 py-5 flex-1 text-sm text-gray-500 leading-relaxed space-y-5">
 
             <div>
-                <p class="font-semibold text-gray-700 mb-1">1. Tentang Claro App</p>
-                <p>Claro App adalah aplikasi manajemen tugas berbasis web yang membantu pengguna mengatur dan menyelesaikan tugas secara efisien, dilengkapi fitur pengingat deadline melalui WhatsApp.</p>
+                <p class="font-semibold text-gray-700 mb-1">1. Tentang Wassup Task</p>
+                <p>Wassup Task adalah aplikasi manajemen tugas berbasis web yang membantu pengguna mengatur dan menyelesaikan tugas secara efisien, dilengkapi fitur pengingat deadline melalui WhatsApp.</p>
             </div>
 
             <div>
@@ -32,7 +32,7 @@
                     <li>Anda bertanggung jawab menjaga kerahasiaan password akun.</li>
                     <li>Satu email hanya untuk satu akun.</li>
                     <li>Informasi yang diberikan harus akurat dan valid.</li>
-                    <li>Claro App berhak menonaktifkan akun yang melanggar ketentuan.</li>
+                    <li>Wassup Task berhak menonaktifkan akun yang melanggar ketentuan.</li>
                 </ul>
             </div>
 
@@ -57,7 +57,7 @@
             <div>
                 <p class="font-semibold text-gray-700 mb-1">6. Batasan Layanan</p>
                 <ul class="list-disc list-inside space-y-1">
-                    <li>Claro App tidak bertanggung jawab atas kegagalan notifikasi akibat masalah jaringan.</li>
+                    <li>Wassup Task tidak bertanggung jawab atas kegagalan notifikasi akibat masalah jaringan.</li>
                     <li>Kami berhak mengubah layanan sewaktu-waktu dengan pemberitahuan.</li>
                 </ul>
             </div>
@@ -65,7 +65,7 @@
             <div>
                 <p class="font-semibold text-gray-700 mb-1">7. Larangan Penggunaan</p>
                 <ul class="list-disc list-inside space-y-1">
-                    <li>Dilarang menggunakan Claro App untuk kegiatan ilegal.</li>
+                    <li>Dilarang menggunakan Wassup Task untuk kegiatan ilegal.</li>
                     <li>Dilarang meretas atau mengganggu sistem.</li>
                     <li>Dilarang mendaftar dengan identitas palsu.</li>
                 </ul>
@@ -73,10 +73,10 @@
 
             <div>
                 <p class="font-semibold text-gray-700 mb-1">8. Kontak</p>
-                <p>Pertanyaan dapat disampaikan melalui <span class="text-indigo-600 font-medium">claro.my.id</span></p>
+                <p>Pertanyaan dapat disampaikan melalui email dukungan aplikasi.</p>
             </div>
 
-            <p class="text-xs text-gray-400">© {{ date('Y') }} Claro App. Seluruh hak dilindungi.</p>
+            <p class="text-xs text-gray-400">© {{ date('Y') }} Wassup Task. Seluruh hak dilindungi.</p>
 
         </div>
 

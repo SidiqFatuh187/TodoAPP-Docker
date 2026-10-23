@@ -55,7 +55,7 @@
         </div>
 
         {{-- Branding --}}
-        <p class="text-xs text-gray-400 mt-6">CLARO App &copy; {{ date('Y') }}</p>
+        <p class="text-xs text-gray-400 mt-6">Wassup Task &copy; {{ date('Y') }}</p>
 
     </div>
 
