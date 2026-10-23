@@ -111,7 +111,7 @@ class TodoController extends Controller
         if ($request->hasFile('file')) {
             $file     = $request->file('file');
             $filename = $file->getClientOriginalName();
-            $filepath = $file->storeAs('uploads', $filename, 'public');
+            $filepath = $file->store('todo-files', 'public');
         }
 
         Todo::create([
@@ -224,6 +224,10 @@ class TodoController extends Controller
         $todo = Todo::where('user_id', Auth::id())->where('id', $id)->firstOrFail();
 
         try {
+            if ($todo->file_path && Storage::disk('public')->exists($todo->file_path)) {
+                Storage::disk('public')->delete($todo->file_path);
+            }
+
             $todo->delete();
             return redirect()->route('todo.index')->with('success', 'Task berhasil dihapus.');
         } catch (\Exception $e) {

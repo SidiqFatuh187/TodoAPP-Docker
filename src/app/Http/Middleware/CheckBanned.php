@@ -17,7 +17,7 @@ class CheckBanned
     {   
         if (auth()->check() && auth()->user()?->is_banned){
             auth()->logout();
-            return redirect()->route('login')->withErrors(['emai' => 'Your account has been banned.']);
+            return redirect()->route('login')->withErrors(['email' => 'Akun Anda telah dinonaktifkan (banned).']);
         }
         return $next($request);
     }

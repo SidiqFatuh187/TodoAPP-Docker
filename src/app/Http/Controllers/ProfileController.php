@@ -79,8 +79,8 @@ class ProfileController extends Controller
     {
         try {
             Http::withHeaders([
-                'Authorization' => env('FONNTE_TOKEN'),
-            ])->post('https://api.fonnte.com/send', [
+                'Authorization' => config('services.fonnte.token'),
+            ])->post(config('services.fonnte.url', 'https://api.fonnte.com/send'), [
                 'target'  => $phone,
                 'message' => "Halo *{$name}*! 👋\n\nNomor WhatsApp kamu berhasil terhubung dengan *Claro App*.\n\nMulai sekarang kamu akan menerima pengingat otomatis setiap ada task yang mendekati deadline.\n\nBalas pesan ini dengan *OK* untuk memastikan notifikasi berjalan lancar 🎉",
             ]);
@@ -93,8 +93,8 @@ class ProfileController extends Controller
     {
         try {
             Http::withHeaders([
-                'Authorization' => env('FONNTE_TOKEN'),
-            ])->post('https://api.fonnte.com/send', [
+                'Authorization' => config('services.fonnte.token'),
+            ])->post(config('services.fonnte.url', 'https://api.fonnte.com/send'), [
                 'target'  => $phone,
                 'message' => "Halo *{$name}*! 👋\n\nNomor WhatsApp kamu di *Claro App* berhasil diperbarui.\n\nNotifikasi deadline akan dikirim ke nomor ini mulai sekarang ✅",
             ]);
