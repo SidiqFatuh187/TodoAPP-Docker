@@ -7,6 +7,9 @@
     @vite(['resources/css/app.css'])
 </head>
 <body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-blue-200 to-indigo-300 p-4">
+    <x-terms-modal />
+    <x-plans-modal />
+    <x-contact-modal />
 
     <div class="w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex min-h-[520px]">
 
@@ -114,10 +117,10 @@
     </div>
 
     {{-- Footer --}}
-    <div class="absolute bottom-4 w-full flex justify-center gap-6 text-xs text-gray-400">
-        <a href="#" class="hover:text-gray-600">Terms</a>
-        <a href="#" class="hover:text-gray-600">Plans</a>
-        <a href="#" class="hover:text-gray-600">Contact Us</a>
+    <div class="absolute bottom-4 w-full flex justify-center gap-6 text-xs text-gray-500">
+        <button type="button" onclick="openTermsModal()" class="hover:text-gray-800 transition-colors cursor-pointer">Terms</button>
+        <button type="button" onclick="openPlansModal()" class="hover:text-gray-800 transition-colors cursor-pointer">Plans</button>
+        <button type="button" onclick="openContactModal()" class="hover:text-gray-800 transition-colors cursor-pointer">Contact Us</button>
     </div>
 
 </body>
