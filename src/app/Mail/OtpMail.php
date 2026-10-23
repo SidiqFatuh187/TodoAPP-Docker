@@ -29,7 +29,7 @@ class OtpMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Kode OTP Reset Password - Claro',
+            subject: 'Kode OTP Reset Password - Wassup Task',
         );
     }
 

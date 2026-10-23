@@ -69,7 +69,7 @@ class TaskDeadlineReminder extends Notification
             . "🎯 Prioritas: {$priority}\n"
             . "📅 Deadline: *{$deadline->format('d M Y, H:i')}*\n\n"
             . "Segera selesaikan sebelum deadline ya! 💪\n\n"
-            . "_— Claro App_";
+            . "_— Wassup Task_";
 
         Http::withHeaders([
             'Authorization' => config('services.fonnte.token'),

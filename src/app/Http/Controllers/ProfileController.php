@@ -82,7 +82,7 @@ class ProfileController extends Controller
                 'Authorization' => config('services.fonnte.token'),
             ])->post(config('services.fonnte.url', 'https://api.fonnte.com/send'), [
                 'target'  => $phone,
-                'message' => "Halo *{$name}*! 👋\n\nNomor WhatsApp kamu berhasil terhubung dengan *Claro App*.\n\nMulai sekarang kamu akan menerima pengingat otomatis setiap ada task yang mendekati deadline.\n\nBalas pesan ini dengan *OK* untuk memastikan notifikasi berjalan lancar 🎉",
+                'message' => "Halo *{$name}*! 👋\n\nNomor WhatsApp kamu berhasil terhubung dengan *Wassup Task*.\n\nMulai sekarang kamu akan menerima pengingat otomatis setiap ada task yang mendekati deadline.\n\nBalas pesan ini dengan *OK* untuk memastikan notifikasi berjalan lancar 🎉",
             ]);
         } catch (\Exception $e) {
             logger()->error('Gagal kirim WA welcome: ' . $e->getMessage());
@@ -96,7 +96,7 @@ class ProfileController extends Controller
                 'Authorization' => config('services.fonnte.token'),
             ])->post(config('services.fonnte.url', 'https://api.fonnte.com/send'), [
                 'target'  => $phone,
-                'message' => "Halo *{$name}*! 👋\n\nNomor WhatsApp kamu di *Claro App* berhasil diperbarui.\n\nNotifikasi deadline akan dikirim ke nomor ini mulai sekarang ✅",
+                'message' => "Halo *{$name}*! 👋\n\nNomor WhatsApp kamu di *Wassup Task* berhasil diperbarui.\n\nNotifikasi deadline akan dikirim ke nomor ini mulai sekarang ✅",
             ]);
         } catch (\Exception $e) {
             logger()->error('Gagal kirim WA confirm change: ' . $e->getMessage());

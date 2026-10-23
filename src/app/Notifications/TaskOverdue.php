@@ -68,7 +68,7 @@ class TaskOverdue extends Notification
         . "📌 *{$this->todo->title}*\n"
         . "📅 Deadline: *{$deadline->format('d M Y, H:i')}*\n\n"
         . "Task ini sudah melewati deadline. Segera selesaikan! ⚡\n\n"
-        . "_— Claro App_";
+        . "_— Wassup Task_";
 
         Http::withHeaders([
             'Authorization' => config('services.fonnte.token'),
