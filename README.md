@@ -1,6 +1,6 @@
-# CLARO — Todo App dengan Reminder Otomatis ke WhatsApp
+# Wassup Task — Todo App dengan Reminder Otomatis ke WhatsApp
 
-**CLARO** adalah aplikasi manajemen tugas (to-do list) berbasis web yang mengirim **pengingat deadline otomatis ke WhatsApp** pengguna menggunakan **Fonnte API**. Dibangun dengan Laravel 13, Tailwind CSS v4, dan MySQL, seluruh stack dijalankan dalam Docker sehingga bisa langsung `docker compose up` tanpa instalasi manual PHP/Node/MySQL di mesin lokal.
+**Wassup Task** adalah aplikasi manajemen tugas (to-do list) berbasis web yang mengirim **pengingat deadline otomatis ke WhatsApp** pengguna menggunakan **Fonnte API**. Dibangun dengan Laravel 13, Tailwind CSS v4, dan MySQL, seluruh stack dijalankan dalam Docker sehingga bisa langsung `docker compose up -d` tanpa instalasi manual PHP/Node/MySQL di mesin lokal.
 
 ![PHP](https://img.shields.io/badge/PHP-8.4-777BB4?logo=php&logoColor=white)
 ![Laravel](https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white)
@@ -37,7 +37,7 @@
 
 ## 📌 Tentang Proyek
 
-CLARO membantu pengguna mencatat tugas lengkap dengan kategori, prioritas, dan deadline, lalu secara otomatis **mengingatkan lewat WhatsApp** setiap ada tugas yang mendekati atau melewati deadline — tanpa perlu buka aplikasi. Cocok untuk kebutuhan personal task management yang notifikasinya ingin langsung nyampe di HP, bukan cuma badge notifikasi di web.
+**Wassup Task** membantu pengguna mencatat tugas lengkap dengan kategori, prioritas, dan deadline, lalu secara otomatis **mengingatkan lewat WhatsApp** setiap ada tugas yang mendekati atau melewati deadline — tanpa perlu buka aplikasi. Cocok untuk kebutuhan personal task management yang notifikasinya ingin langsung sampai di HP, bukan cuma badge notifikasi di web.
 
 Aplikasi ini juga dilengkapi panel admin, reset password via OTP (email), dan pencatatan aktivitas (activity log) untuk keperluan audit.
 
@@ -45,7 +45,7 @@ Aplikasi ini juga dilengkapi panel admin, reset password via OTP (email), dan pe
 
 | Halaman Login | Dashboard |
 |---|---|
-| ![Halaman Sign In CLARO](docs/asset/login.png) | ![Dashboard CLARO](docs/asset/dashboard.png) |
+| ![Halaman Sign In Wassup Task](docs/asset/login.png) | ![Dashboard Wassup Task](docs/asset/dashboard.png) |
 
 - **Sign In** — halaman login dengan email & password, plus link *Lupa password* (reset via OTP email) dan link ke halaman Register.
 - **Dashboard** — ringkasan Total Tasks, Completed, Pending, dan Overdue, daftar tugas terbaru, kalender bulan berjalan, serta akses cepat ke Admin Panel bagi user dengan role admin.
@@ -54,7 +54,7 @@ Aplikasi ini juga dilengkapi panel admin, reset password via OTP (email), dan pe
 
 ### 🗂️ Manajemen Tugas (Todo)
 - CRUD tugas lengkap: judul, deskripsi, kategori, prioritas (`low` / `medium` / `high`), status (`pending` / `active` / `completed`), dan deadline
-- Lampiran file per tugas (pdf, doc, docx, xls, xlsx, jpg, png — maks. 5 MB)
+- Lampiran file per tugas (pdf, doc, docx, xls, xlsx, jpg, png — maks. 5 MB) dengan hash nama file unik dan auto-delete file saat task dihapus
 - Pencarian & filter tugas berdasarkan status, kategori, atau kata kunci (termasuk quick search via AJAX)
 - Kategori kustom dengan warna & ikon per user
 - Halaman **Due Dates** yang mengelompokkan tugas ke: **Terlambat**, **Hari Ini**, **Besok**, dan **Nanti**
@@ -70,12 +70,14 @@ Aplikasi ini juga dilengkapi panel admin, reset password via OTP (email), dan pe
 - Register, Login, Logout
 - Reset password via **kode OTP yang dikirim ke email** (menggunakan Resend API)
 - Middleware pengecekan akun yang di-banned (`CheckBanned`)
+- Artisan command & Seeder pembuatan admin: `php artisan app:create-admin`
 
 ### 🔔 Notifikasi In-App
 - Pusat notifikasi (list, tandai semua terbaca, hapus satu/semua)
 
 ### 👤 Profil & Pengaturan
 - Edit profil (nama, no. HP, bio, avatar), ganti password
+- Notifikasi sambutan otomatis saat pertama kali menghubungkan no HP WhatsApp
 - Pengaturan zona waktu (WIB/WITA/WIT) yang memengaruhi jadwal reminder
 
 ### 🛠️ Panel Admin
@@ -94,7 +96,9 @@ Inti fitur reminder ada di command `app:send-task-notifications`, dijadwalkan be
 
 ```php
 // routes/console.php
-Schedule::command('app:send-task-notifications --timezone=Asia/Jakarta')->dailyAt('07:00');
+Schedule::command('app:send-task-notifications --timezone=Asia/Jakarta')
+    ->dailyAt('07:00')
+    ->timezone('Asia/Jakarta');
 ```
 
 Setiap kali dijalankan, command ini memproses 3 jenis pengingat untuk semua tugas yang belum `completed`:
@@ -106,7 +110,7 @@ Setiap kali dijalankan, command ini memproses 3 jenis pengingat untuk semua tuga
 | ⏰ **Besok (H-1)** | Deadline jatuh besok | `TaskDeadlineReminder` |
 
 Alur pengirimannya:
-1. Command mengambil tugas yang memenuhi kondisi di atas, per-batch (`chunk(100)`) agar hemat memori.
+1. Command memfilter tugas yang memenuhi kondisi deadline di atas secara optimal via SQL.
 2. Untuk tiap tugas, sistem mengecek dulu apakah notifikasi jenis yang sama untuk `task_id` tersebut **sudah pernah dikirim** (dicek dari tabel `notifications`) — supaya tidak ada pesan dobel.
 3. Jika belum, Laravel Notification dipicu lewat `$user->notify(...)`, yang jalan di 2 channel:
    - `database` → tersimpan di pusat notifikasi in-app
@@ -121,8 +125,6 @@ Http::withHeaders([
     'message' => $message,
 ]);
 ```
-
-> **Catatan analisis:** Berdasarkan kode saat ini, level pengingat yang sudah aktif terjadwal adalah **Overdue, Hari-H, dan H-1**. Halaman *Due Dates* di UI sudah menyiapkan pengelompokan `overdue / today / tomorrow / later`, tapi command scheduler untuk reminder **H-7 belum ada** — lihat bagian [Roadmap](#-roadmap) jika ingin menambahkannya.
 
 ## 🧱 Tech Stack
 
@@ -140,13 +142,14 @@ Http::withHeaders([
 
 ## 🐳 Arsitektur Docker
 
-`docker-compose.yml` menjalankan 4 service:
+`docker-compose.yml` menjalankan 5 service:
 
 | Service | Image / Build | Port | Fungsi |
 |---|---|---|---|
 | `nginx-proxy-manager` | `jc21/nginx-proxy-manager` | `80`, `443`, `81` | Reverse proxy + panel manajemen SSL/domain |
 | `nginx` | `nginx:alpine` | `8000` → `80` | Web server, meneruskan request PHP ke container `php` |
 | `php` | Custom (`docker/php/Dockerfile`, base `php:8.4-fpm`) | `5173` (Vite dev server) | Menjalankan aplikasi Laravel, Composer, Node.js 22 & npm sudah terpasang di image |
+| `scheduler` | Custom (`docker/php/Dockerfile`) | - | Background worker yang otomatis menjalankan `php artisan schedule:work` setiap 60 detik |
 | `mysql` | `mysql:8.0` | `3306` (localhost only) | Database utama (`todo_db`) |
 
 Semua service terhubung lewat network bridge `todo_network`, dengan volume persisten untuk data MySQL dan konfigurasi Nginx Proxy Manager.
@@ -158,11 +161,12 @@ TodoAPP-Docker/
 ├── docker/
 │   ├── nginx/default.conf      # Konfigurasi virtual host Nginx
 │   └── php/Dockerfile          # Image PHP 8.4-fpm + Node.js 22 + ekstensi Laravel
-├── docker-compose.yml          # Definisi service: nginx-proxy-manager, nginx, php, mysql
+├── docker-compose.yml          # Definisi service: nginx-proxy-manager, nginx, php, scheduler, mysql
 ├── src/                        # Source code Laravel
 │   ├── app/
 │   │   ├── Channels/WhatsappChannel.php       # Custom notification channel → Fonnte
 │   │   ├── Console/Commands/SendTaskNotifications.php  # Logic reminder terjadwal
+│   │   ├── Console/Commands/CreateAdminUser.php        # Command buat user admin
 │   │   ├── Notifications/                     # TaskOverdue, TaskDueTodayReminder, TaskDeadlineReminder
 │   │   ├── Mail/OtpMail.php                    # Email OTP reset password (Resend)
 │   │   ├── Http/Controllers/                   # Todo, Category, DueDate, Admin, Profile, dst.
@@ -196,9 +200,11 @@ cd TodoAPP-Docker
 cp src/.env.example src/.env
 ```
 
-Edit `src/.env`, sesuaikan minimal bagian berikut (default `.env.example` masih mengarah ke SQLite, sedangkan `docker-compose.yml` menyediakan MySQL — jadi wajib diganti):
+Edit `src/.env`, sesuaikan minimal bagian berikut:
 
 ```env
+APP_NAME="Wassup Task"
+
 DB_CONNECTION=mysql
 DB_HOST=mysql
 DB_PORT=3306
@@ -209,13 +215,14 @@ DB_PASSWORD=todo_pass
 MAIL_MAILER=resend
 RESEND_API_KEY=your_resend_api_key
 MAIL_FROM_ADDRESS=noreply@yourdomain.com
+MAIL_FROM_NAME="Wassup Task"
 
 FONNTE_TOKEN=your_fonnte_device_token
 FONNTE_URL=https://api.fonnte.com/send
 ```
 
 ```bash
-# 3. Build & jalankan seluruh container
+# 3. Build & jalankan seluruh container (termasuk scheduler)
 docker compose up -d --build
 
 # 4. Install dependency PHP
@@ -227,10 +234,13 @@ docker compose exec php php artisan key:generate
 # 6. Jalankan migrasi database
 docker compose exec php php artisan migrate
 
-# 7. Buat symlink storage (dibutuhkan untuk lampiran file & avatar)
+# 7. (Opsional) Buat user admin default
+docker compose exec php php artisan app:create-admin
+
+# 8. Buat symlink storage (dibutuhkan untuk lampiran file & avatar)
 docker compose exec php php artisan storage:link
 
-# 8. Install dependency & build asset frontend (Tailwind v4 + Vite)
+# 9. Install dependency & build asset frontend (Tailwind v4 + Vite)
 docker compose exec php npm install
 docker compose exec php npm run build
 ```
@@ -243,29 +253,22 @@ Aplikasi bisa diakses di **http://localhost:8000**.
 
 | Variabel | Keterangan |
 |---|---|
+| `APP_NAME` | Nama aplikasi: `"Wassup Task"` |
 | `DB_CONNECTION`, `DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Kredensial MySQL, samakan dengan yang didefinisikan di `docker-compose.yml` |
-| `MAIL_MAILER=resend`, `RESEND_API_KEY` | Konfigurasi pengiriman email OTP reset password lewat Resend |
+| `MAIL_MAILER=resend`, `RESEND_API_KEY`, `MAIL_FROM_NAME` | Konfigurasi pengiriman email OTP reset password lewat Resend |
 | `FONNTE_TOKEN` | Token device dari dashboard Fonnte, dipakai sebagai header `Authorization` |
 | `FONNTE_URL` | Endpoint API Fonnte, default `https://api.fonnte.com/send` |
-| `QUEUE_CONNECTION=database` | Notifikasi menggunakan queue, pastikan tabel `jobs` termigrasi dan ada worker aktif |
+| `QUEUE_CONNECTION=database` | Notifikasi menggunakan queue, pastikan tabel `jobs` termigrasi |
 | `APP_TIMEZONE` | Timezone default aplikasi; timezone per-user (WIB/WITA/WIT) diatur lewat halaman Settings |
 
 ## 📅 Menjalankan Scheduler (Reminder)
 
-Reminder WhatsApp dikirim lewat Laravel Scheduler, yang butuh proses berjalan terus-menerus. Docker Compose bawaan di repo ini **belum** menyertakan container terpisah untuk scheduler, jadi pilih salah satu cara berikut di container `php`:
+Docker Compose di repo ini sudah menyertakan container khusus **`todo_scheduler`** yang menjalankan `php artisan schedule:work` secara otomatis di background. Begitu `docker compose up -d` dijalankan, robot scheduler langsung aktif memantau jadwal setiap 60 detik tanpa perlu perintah manual di terminal!
+
+Jika ingin menguji pengiriman notifikasi secara instan tanpa menunggu jam 07:00 pagi:
 
 ```bash
-# Opsi 1 — untuk development, cron-like loop bawaan Laravel
-docker compose exec php php artisan schedule:work
-
-# Opsi 2 — untuk production, tambahkan cron job di host/server (setiap menit)
-* * * * * docker compose exec -T php php artisan schedule:run >> /dev/null 2>&1
-```
-
-Karena notifikasi memakai `ShouldQueue`/queue database, pastikan juga ada queue worker yang berjalan:
-
-```bash
-docker compose exec php php artisan queue:work
+docker compose exec php php artisan app:send-task-notifications
 ```
 
 ## 🧪 Testing & CI/CD
@@ -278,9 +281,9 @@ docker compose exec php php artisan queue:work
 Beberapa ide pengembangan lanjutan:
 
 - [ ] Tambahkan level reminder **H-7** (pengingat 7 hari sebelum deadline) pada `SendTaskNotifications`
-- [ ] Tambahkan container/service khusus untuk scheduler & queue worker di `docker-compose.yml` (saat ini masih manual)
+- [x] Tambahkan container/service khusus untuk scheduler di `docker-compose.yml` *(Selesai)*
 - [ ] Preferensi channel notifikasi (WhatsApp / Email / keduanya) yang bisa diatur user sendiri
-- [ ] Retry & logging kegagalan pengiriman Fonnte (saat ini response API tidak diperiksa)
+- [ ] Retry & logging kegagalan pengiriman Fonnte jika nomor tidak valid
 
 ## 🤝 Kontribusi
 
@@ -290,8 +293,6 @@ Kontribusi lewat Pull Request juga sangat diterima, baik untuk:
 - Perbaikan bug
 - Fitur baru (mis. reminder H-7, channel notifikasi tambahan)
 - Peningkatan dokumentasi
-
-Untuk perubahan besar, disarankan membuka *issue* terlebih dahulu untuk mendiskusikan apa yang ingin diubah sebelum mulai mengerjakan PR.
 
 ## 📄 Lisensi
 

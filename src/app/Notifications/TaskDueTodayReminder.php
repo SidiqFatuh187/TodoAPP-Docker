@@ -68,7 +68,7 @@ class TaskDueTodayReminder extends Notification
         . "📌 *{$this->todo->title}*\n"
         . "⏰ Deadline: *{$deadline->format('H:i')}* hari ini\n\n"
         . "Jangan sampai telat ya! 💪\n\n"
-        . "_— Claro App_";
+        . "_— Wassup Task_";
 
         Http::withHeaders([
             'Authorization' => config('services.fonnte.token'),

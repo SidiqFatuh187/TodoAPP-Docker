@@ -14,7 +14,7 @@ class CreateAdminUser extends Command
      * @var string
      */
     protected $signature = 'app:create-admin 
-                            {--name=Admin Claro : Nama admin} 
+                            {--name=Admin Wassup Task : Nama admin} 
                             {--email=admin@claro.com : Email admin} 
                             {--password=admin12345 : Password admin} 
                             {--phone= : Nomor WhatsApp admin (opsional)}';
@@ -24,14 +24,14 @@ class CreateAdminUser extends Command
      *
      * @var string
      */
-    protected $description = 'Create or update an admin user for CLARO application';
+    protected $description = 'Create or update an admin user for Wassup Task application';
 
     /**
      * Execute the console command.
      */
     public function handle()
     {
-        $name     = $this->option('name') ?: 'Admin Claro';
+        $name     = $this->option('name') ?: 'Admin Wassup Task';
         $email    = $this->option('email') ?: 'admin@claro.com';
         $password = $this->option('password') ?: 'admin12345';
         $phone    = $this->option('phone');

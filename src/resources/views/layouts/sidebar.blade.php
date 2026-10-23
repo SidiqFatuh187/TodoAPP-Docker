@@ -2,7 +2,7 @@
 
     {{-- Logo + Close (mobile) --}}
     <div class="px-6 py-6 flex items-center justify-between">
-        <h1 class="text-xl font-bold text-white tracking-wide">CLARO</h1>
+        <h1 class="text-xl font-bold text-white tracking-wide">Wassup Task</h1>
         <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white md:hidden">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

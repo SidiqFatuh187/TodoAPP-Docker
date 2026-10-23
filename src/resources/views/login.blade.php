@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - ToDoApp</title>
+    <title>Login - Wassup Task</title>
     @vite(['resources/css/app.css', 'resources/js/login.js'])
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 via-blue-200 to-indigo-300 p-4 gap-4">
@@ -31,7 +31,7 @@
             <div class="w-full max-w-sm">
 
                 <h2 class="text-2xl font-bold text-gray-800 mb-1">Sign In</h2>
-                <p class="text-gray-400 text-sm mb-7">Welcome back to CLARO</p>
+                <p class="text-gray-400 text-sm mb-7">Welcome back to Wassup Task</p>
 
                 {{-- Alert Success --}}
                 @if(session('success'))

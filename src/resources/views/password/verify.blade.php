@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verifikasi OTP - Claro</title>
+    <title>Verifikasi OTP - Wassup Task</title>
     @vite(['resources/css/app.css'])
 </head>
 <body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-blue-200 to-indigo-300 p-4">
