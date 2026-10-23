@@ -38,6 +38,23 @@ services:
       - ./src:/var/www/html
     networks:
       - todo_network
+  scheduler:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: todo_scheduler
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      - HOME=/tmp/var/www/html
+    command: php artisan schedule:work
+    volumes:
+      - ./src:/var/www/html
+    depends_on:
+      - php
+      - mysql
+    networks:
+      - todo_network
   mysql:
     image: mysql:8.0
     container_name: todo_mysql
