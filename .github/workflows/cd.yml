@@ -103,4 +103,4 @@ jobs:
 
       - name: Notify jika gagal
         if: failure()
-        run: echo "❌ Deployment CLARO gagal!"
+        run: echo "❌ Deployment Wassup Task gagal!"

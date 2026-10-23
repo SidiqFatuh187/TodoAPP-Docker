@@ -16,7 +16,7 @@ class AdminUserSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@claro.com'],
             [
-                'name'              => 'Admin Claro',
+                'name'              => 'Admin Wassup Task',
                 'password'          => Hash::make('admin12345'),
                 'role'              => 'admin',
                 'is_banned'         => false,
