@@ -59,12 +59,17 @@ Aplikasi ini juga dilengkapi panel admin, reset password via OTP (email), dan pe
 - Kategori kustom dengan warna & ikon per user
 - Halaman **Due Dates** yang mengelompokkan tugas ke: **Terlambat**, **Hari Ini**, **Besok**, dan **Nanti**
 
-### 📲 Reminder Otomatis ke WhatsApp (Fonnte)
-- Notifikasi WhatsApp otomatis untuk tugas yang **overdue**, **deadline hari ini**, dan **deadline besok (H-1)**
-- Pesan WhatsApp berformat rapi (nama user, judul tugas, prioritas, jam deadline)
-- Mendukung 3 zona waktu Indonesia per user: **WIB, WITA, WIT** — pengingat dihitung sesuai timezone masing-masing user, bukan waktu server
-- Anti duplikat: sistem mengecek riwayat notifikasi sebelum mengirim ulang pesan yang sama
-- Notifikasi juga tersimpan di database (in-app notification center), tidak hanya dikirim ke WhatsApp
+### 📲 Smart Reminder Otomatis ke WhatsApp (Fonnte)
+- Sistem pengingat bertahap multi-level:
+  - 🌅 **Rangkuman Pagi (*Morning Digest*)**: Ringkasan terpadu tugas hari ini dan besok antara jam 07:00 – 09:00 pagi (anti-spam, 1 pesan untuk semua tugas).
+  - ⏳ **Pengingat Awal H-3**: Pengingat dini 3 hari sebelum deadline (mulai jam 09:00 pagi) untuk tugas besar atau laporan praktikum.
+  - ⏰ **Pengingat H-1**: Notifikasi sore hari (mulai jam 17:00 WIB) agar pengguna mulai mencicil di malam hari.
+  - ⚠️ **Peringatan Kritis (*Urgent*)**: Alarm darurat saat sisa waktu $< 6$ jam dan $< 1$ jam sebelum deadline.
+  - 🚨 **Tugas Terlambat (*Overdue*)**: Peringatan saat batas waktu tugas telah terlewati.
+- Pesan WhatsApp berformat rapi dan informatif (nama user, judul tugas, prioritas dengan ikon warna, jam deadline).
+- Mendukung 3 zona waktu Indonesia per user: **WIB, WITA, WIT** — pengingat dihitung presisi sesuai timezone masing-masing user, bukan waktu server.
+- Anti duplikat cerdas: sistem mengecek riwayat tabel notifikasi sehingga pesan tidak berulang atau spam.
+- Notifikasi terintegrasi ganda: tersimpan di database (in-app notification center) dan dikirim ke WhatsApp pengguna.
 
 ### 🔐 Autentikasi & Keamanan
 - Register, Login, Logout
@@ -92,22 +97,24 @@ Aplikasi ini juga dilengkapi panel admin, reset password via OTP (email), dan pe
 
 ## ⏰ Cara Kerja Reminder WhatsApp
 
-Inti fitur reminder ada di command `app:send-task-notifications`, dijadwalkan berjalan **setiap hari jam 07:00 WIB** melalui Laravel Scheduler:
+Inti fitur reminder ada di command `app:send-task-notifications`, dijadwalkan berjalan **setiap 15 menit** melalui Laravel Scheduler:
 
 ```php
 // routes/console.php
 Schedule::command('app:send-task-notifications --timezone=Asia/Jakarta')
-    ->dailyAt('07:00')
+    ->everyFifteenMinutes()
     ->timezone('Asia/Jakarta');
 ```
 
-Setiap kali dijalankan, command ini memproses 3 jenis pengingat untuk semua tugas yang belum `completed`:
+Setiap kali dijalankan, scheduler mengecek batas waktu tugas dan mengirimkan notifikasi sesuai fase pengingat:
 
-| Jenis Reminder | Kondisi | Notification Class |
-|---|---|---|
-| 🚨 **Overdue** | Deadline sudah lewat dari hari ini (sesuai timezone user) | `TaskOverdue` |
-| 📅 **Hari Ini (H0)** | Deadline jatuh tepat hari ini | `TaskDueTodayReminder` |
-| ⏰ **Besok (H-1)** | Deadline jatuh besok | `TaskDeadlineReminder` |
+| Tahap Pengingat | Waktu / Kondisi | Notification Class | Tujuan & Karakteristik |
+|---|---|---|---|
+| 🌅 **Morning Digest** | Jam 07:00 – 09:00 pagi | `MorningDigestNotification` | Merangkum semua tugas hari ini & besok dalam 1 pesan WA agar anti-spam |
+| ⏳ **Early Warning (H-3)** | 3 hari sebelum deadline (mulai jam 09:00 pagi) | `TaskH3Reminder` | Peringatan awal untuk tugas besar / kelompok yang butuh waktu lama |
+| ⏰ **Warning (H-1)** | 1 hari sebelum deadline (mulai jam 17:00 sore) | `TaskDeadlineReminder` | Mengingatkan tugas besok agar pengguna mulai mencicil malam itu |
+| ⚠️ **Urgent Warning** | Sisa waktu $< 6$ jam & $< 1$ jam sebelum deadline | `TaskUrgentReminder` | Alarm darurat bagi yang suka SKS atau lupa menekan tombol submit |
+| 🚨 **Overdue** | Deadline telah lewat (sesuai timezone user) | `TaskOverdue` | Memberitahu tugas yang telah melewati batas waktu pengumpulan |
 
 Alur pengirimannya:
 1. Command memfilter tugas yang memenuhi kondisi deadline di atas secara optimal via SQL.
@@ -167,7 +174,7 @@ TodoAPP-Docker/
 │   │   ├── Channels/WhatsappChannel.php       # Custom notification channel → Fonnte
 │   │   ├── Console/Commands/SendTaskNotifications.php  # Logic reminder terjadwal
 │   │   ├── Console/Commands/CreateAdminUser.php        # Command buat user admin
-│   │   ├── Notifications/                     # TaskOverdue, TaskDueTodayReminder, TaskDeadlineReminder
+│   │   ├── Notifications/                     # MorningDigestNotification, TaskH3Reminder, TaskDeadlineReminder, TaskUrgentReminder, TaskOverdue
 │   │   ├── Mail/OtpMail.php                    # Email OTP reset password (Resend)
 │   │   ├── Http/Controllers/                   # Todo, Category, DueDate, Admin, Profile, dst.
 │   │   ├── Models/                             # User, Todo, Category, ActivityLog
@@ -263,9 +270,9 @@ Aplikasi bisa diakses di **http://localhost:8000**.
 
 ## 📅 Menjalankan Scheduler (Reminder)
 
-Docker Compose di repo ini sudah menyertakan container khusus **`todo_scheduler`** yang menjalankan `php artisan schedule:work` secara otomatis di background. Begitu `docker compose up -d` dijalankan, robot scheduler langsung aktif memantau jadwal setiap 60 detik tanpa perlu perintah manual di terminal!
+Docker Compose di repo ini sudah menyertakan container khusus **`todo_scheduler`** yang menjalankan `php artisan schedule:work` secara otomatis di background. Begitu `docker compose up -d` dijalankan, robot scheduler langsung aktif memantau jadwal dan mengeksekusi pengiriman reminder setiap 15 menit tanpa perlu perintah manual di terminal!
 
-Jika ingin menguji pengiriman notifikasi secara instan tanpa menunggu jam 07:00 pagi:
+Jika ingin menguji pengiriman notifikasi secara instan tanpa menunggu siklus 15 menit:
 
 ```bash
 docker compose exec php php artisan app:send-task-notifications
@@ -278,10 +285,12 @@ docker compose exec php php artisan app:send-task-notifications
 
 ## 🗺️ Roadmap
 
-Beberapa ide pengembangan lanjutan:
+Beberapa pembaruan dan ide pengembangan lanjutan:
 
-- [ ] Tambahkan level reminder **H-7** (pengingat 7 hari sebelum deadline) pada `SendTaskNotifications`
+- [x] Sistem reminder bertahap multi-level: Morning Digest (jam 07:00-09:00), Early Warning H-3, Warning H-1, Urgent 6 Jam & 1 Jam, dan Overdue *(Selesai)*
 - [x] Tambahkan container/service khusus untuk scheduler di `docker-compose.yml` *(Selesai)*
+- [x] Modal interaktif untuk Terms, Plans, dan Contact Us pada halaman autentikasi *(Selesai)*
+- [ ] Tambahkan level reminder **H-7** (pengingat 7 hari sebelum deadline)
 - [ ] Preferensi channel notifikasi (WhatsApp / Email / keduanya) yang bisa diatur user sendiri
 - [ ] Retry & logging kegagalan pengiriman Fonnte jika nomor tidak valid
 
