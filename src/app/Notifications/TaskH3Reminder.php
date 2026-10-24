@@ -65,3 +65,4 @@ class TaskH3Reminder extends Notification
         ]);
     }
 }
+

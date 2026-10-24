@@ -101,3 +101,4 @@ class MorningDigestNotification extends Notification
         ]);
     }
 }
+
