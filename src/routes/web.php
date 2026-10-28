@@ -11,12 +11,16 @@ use App\Http\Controllers\DueDateController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\FonnteWebhookController;
 
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-        return view('login');
-    });
+    return view('login');
+});
+
+// WhatsApp Two-Way Webhook (Fonnte)
+Route::match(['get', 'post'], '/webhook/fonnte', [FonnteWebhookController::class, 'handle'])->name('webhook.fonnte');
 
     // Admin Route
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(function () {

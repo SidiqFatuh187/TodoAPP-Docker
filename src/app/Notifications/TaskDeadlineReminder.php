@@ -64,11 +64,12 @@ class TaskDeadlineReminder extends Notification
 
         $message = "Halo *{$notifiable->name}*! 👋\n\n"
             . "⏰ *Pengingat Deadline Besok*\n\n"
-            . "📌 *{$this->todo->title}*\n"
+            . "📌 *{$this->todo->title}* [ID: #{$this->todo->id}]\n"
             . ($this->todo->description ? "📝 {$this->todo->description}\n" : '')
             . "🎯 Prioritas: {$priority}\n"
             . "📅 Deadline: *{$deadline->format('d M Y, H:i')}*\n\n"
-            . "Segera selesaikan sebelum deadline ya! 💪\n\n"
+            . "Segera selesaikan sebelum deadline ya! 💪\n"
+            . "👉 Balas pesan ini: *DONE {$this->todo->id}* jika sudah selesai!\n\n"
             . "_— Wassup Task_";
 
         Http::withHeaders([

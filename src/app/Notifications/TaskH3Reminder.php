@@ -50,11 +50,12 @@ class TaskH3Reminder extends Notification
 
         $message = "Halo *{$notifiable->name}*! 👋\n\n"
             . "⏳ *Pengingat Awal (H-3 Deadline)*\n\n"
-            . "📌 *{$this->todo->title}*\n"
+            . "📌 *{$this->todo->title}* [ID: #{$this->todo->id}]\n"
             . ($this->todo->description ? "📝 {$this->todo->description}\n" : '')
             . "🎯 Prioritas: {$priority}\n"
             . "📅 Deadline: *{$deadline->translatedFormat('l, d M Y — H:i')} WIB*\n\n"
-            . "Tugas ini punya batas waktu 3 hari lagi. Yuk mulai dicicil pengerjaannya dari sekarang! 🚀\n\n"
+            . "Tugas ini punya batas waktu 3 hari lagi. Yuk mulai dicicil pengerjaannya dari sekarang! 🚀\n"
+            . "👉 Balas pesan ini: *DONE {$this->todo->id}* jika sudah selesai!\n\n"
             . "_— Wassup Task_";
 
         Http::withHeaders([

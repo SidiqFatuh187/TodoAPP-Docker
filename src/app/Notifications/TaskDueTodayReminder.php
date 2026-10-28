@@ -65,9 +65,10 @@ class TaskDueTodayReminder extends Notification
 
         $message = "Halo *{$notifiable->name}*! 👋\n\n"
         . "📅 *Task Deadline Hari Ini!*\n\n"
-        . "📌 *{$this->todo->title}*\n"
+        . "📌 *{$this->todo->title}* [ID: #{$this->todo->id}]\n"
         . "⏰ Deadline: *{$deadline->format('H:i')}* hari ini\n\n"
-        . "Jangan sampai telat ya! 💪\n\n"
+        . "Jangan sampai telat ya! 💪\n"
+        . "👉 Balas pesan ini: *DONE {$this->todo->id}* jika sudah selesai!\n\n"
         . "_— Wassup Task_";
 
         Http::withHeaders([

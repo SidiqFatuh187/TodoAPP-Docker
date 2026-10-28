@@ -36,7 +36,8 @@ return [
     ],
 
     'fonnte' => [
-    'token' => env('FONNTE_TOKEN'),
-    'url'   => env('FONNTE_URL', 'https://api.fonnte.com/send'),
+        'token'          => env('FONNTE_TOKEN'),
+        'url'            => env('FONNTE_URL', 'https://api.fonnte.com/send'),
+        'webhook_secret' => env('FONNTE_WEBHOOK_SECRET'),
     ],
 ];

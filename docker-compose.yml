@@ -55,6 +55,15 @@ services:
       - mysql
     networks:
       - todo_network
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: todo_tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://nginx:80
+    depends_on:
+      - nginx
+    networks:
+      - todo_network
   mysql:
     image: mysql:8.0
     container_name: todo_mysql

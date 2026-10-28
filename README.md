@@ -71,6 +71,13 @@ Aplikasi ini juga dilengkapi panel admin, reset password via OTP (email), dan pe
 - Anti duplikat cerdas: sistem mengecek riwayat tabel notifikasi sehingga pesan tidak berulang atau spam.
 - Notifikasi terintegrasi ganda: tersimpan di database (in-app notification center) dan dikirim ke WhatsApp pengguna.
 
+### 💬 Interaksi WhatsApp Dua Arah (Incoming Webhook)
+Pengguna bisa mengontrol tugas langsung dari chat WhatsApp tanpa membuka website:
+- **`DONE <id>`** atau **`SELESAI <id>`**: Menandai tugas selesai secara instan.
+- **`TUNDA <id> <durasi>`**: Mengundur deadline tugas (contoh: `TUNDA 12 2h`, `TUNDA 12 1d`).
+- **`TODO <judul>`**: Mencatat tugas baru cepat langsung dari WhatsApp.
+- **`TUGAS`** atau **`LIST`**: Menampilkan daftar tugas aktif beserta deadline dan ID-nya.
+- **`HELP`** atau **`BANTUAN`**: Menampilkan petunjuk format perintah.
 ### 🔐 Autentikasi & Keamanan
 - Register, Login, Logout
 - Reset password via **kode OTP yang dikirim ke email** (menggunakan Resend API)
@@ -149,7 +156,7 @@ Http::withHeaders([
 
 ## 🐳 Arsitektur Docker
 
-`docker-compose.yml` menjalankan 5 service:
+`docker-compose.yml` menjalankan 6 service:
 
 | Service | Image / Build | Port | Fungsi |
 |---|---|---|---|
@@ -157,8 +164,8 @@ Http::withHeaders([
 | `nginx` | `nginx:alpine` | `8000` → `80` | Web server, meneruskan request PHP ke container `php` |
 | `php` | Custom (`docker/php/Dockerfile`, base `php:8.4-fpm`) | `5173` (Vite dev server) | Menjalankan aplikasi Laravel, Composer, Node.js 22 & npm sudah terpasang di image |
 | `scheduler` | Custom (`docker/php/Dockerfile`) | - | Background worker yang otomatis menjalankan `php artisan schedule:work` setiap 60 detik |
+| `tunnel` | `cloudflare/cloudflared:latest` | - | Public HTTPS Tunnel otomatis untuk menerima incoming webhook WhatsApp Fonnte nonstop 24/7 |
 | `mysql` | `mysql:8.0` | `3306` (localhost only) | Database utama (`todo_db`) |
-
 Semua service terhubung lewat network bridge `todo_network`, dengan volume persisten untuk data MySQL dan konfigurasi Nginx Proxy Manager.
 
 ## 📁 Struktur Proyek
@@ -288,6 +295,7 @@ docker compose exec php php artisan app:send-task-notifications
 Beberapa pembaruan dan ide pengembangan lanjutan:
 
 - [x] Sistem reminder bertahap multi-level: Morning Digest (jam 07:00-09:00), Early Warning H-3, Warning H-1, Urgent 6 Jam & 1 Jam, dan Overdue *(Selesai)*
+- [x] Interaksi WhatsApp dua arah via Incoming Webhook Fonnte (DONE, TUNDA, TODO, TUGAS, HELP) *(Selesai)*
 - [x] Tambahkan container/service khusus untuk scheduler di `docker-compose.yml` *(Selesai)*
 - [x] Modal interaktif untuk Terms, Plans, dan Contact Us pada halaman autentikasi *(Selesai)*
 - [ ] Tambahkan level reminder **H-7** (pengingat 7 hari sebelum deadline)

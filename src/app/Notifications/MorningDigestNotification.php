@@ -67,7 +67,7 @@ class MorningDigestNotification extends Notification
                     'low'    => '🟢',
                     default  => '⚪',
                 };
-                $message .= "{$i}. {$priority} *{$todo->title}* — Jam {$deadline->format('H:i')}\n";
+                $message .= "{$i}. {$priority} [ID: #{$todo->id}] *{$todo->title}* — Jam {$deadline->format('H:i')}\n";
                 $i++;
             }
             $message .= "\n";
@@ -84,15 +84,15 @@ class MorningDigestNotification extends Notification
                     'low'    => '🟢',
                     default  => '⚪',
                 };
-                $message .= "{$i}. {$priority} *{$todo->title}* — Jam {$deadline->format('H:i')}\n";
+                $message .= "{$i}. {$priority} [ID: #{$todo->id}] *{$todo->title}* — Jam {$deadline->format('H:i')}\n";
                 $i++;
             }
             $message .= "\n";
         }
 
         $message .= "Semangat produktif hari ini! Jangan lupa diselesaikan ya 💪\n\n"
+            . "💡 *Tips:* Balas *DONE <id>* untuk menandai tugas selesai langsung dari chat ini!\n\n"
             . "_— Wassup Task_";
-
         Http::withHeaders([
             'Authorization' => config('services.fonnte.token'),
         ])->post(config('services.fonnte.url'), [
