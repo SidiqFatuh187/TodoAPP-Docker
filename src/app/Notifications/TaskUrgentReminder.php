@@ -59,19 +59,21 @@ class TaskUrgentReminder extends Notification
 
         if ($this->urgency === '1_hour') {
             $message = "🚨 *PERINGATAN KRITIS: 1 JAM LAGI!* 🚨\n\n"
-                . "📌 *{$this->todo->title}*\n"
+                . "📌 *{$this->todo->title}* [ID: #{$this->todo->id}]\n"
                 . ($this->todo->description ? "📝 {$this->todo->description}\n" : '')
                 . "🎯 Prioritas: {$priority}\n"
                 . "⏰ Deadline: *{$deadline->format('H:i')} WIB (Kurang dari 60 menit)*\n\n"
-                . "Waktu hampir habis! Segera selesaikan dan submit tugasmu sekarang juga! ⚡⚡\n\n"
+                . "Waktu hampir habis! Segera selesaikan dan submit tugasmu sekarang juga! ⚡⚡\n"
+                . "👉 Balas *DONE {$this->todo->id}* jika sudah selesai, atau *TUNDA {$this->todo->id} 2h* untuk mengundur.\n\n"
                 . "_— Wassup Task_";
         } else {
             $message = "⚠️ *PENGINGAT URGENT: DEADLINE MENDEKAT (< 6 JAM)*\n\n"
-                . "📌 *{$this->todo->title}*\n"
+                . "📌 *{$this->todo->title}* [ID: #{$this->todo->id}]\n"
                 . ($this->todo->description ? "📝 {$this->todo->description}\n" : '')
                 . "🎯 Prioritas: {$priority}\n"
                 . "⏰ Deadline: *Hari ini, {$deadline->format('H:i')} WIB*\n\n"
-                . "Waktu pengerjaan tersisa kurang dari 6 jam. Pastikan tugasmu segera difinalisasi ya! 💪\n\n"
+                . "Waktu pengerjaan tersisa kurang dari 6 jam. Pastikan tugasmu segera difinalisasi ya! 💪\n"
+                . "👉 Balas *DONE {$this->todo->id}* jika sudah selesai, atau *TUNDA {$this->todo->id} 2h* untuk mengundur.\n\n"
                 . "_— Wassup Task_";
         }
 

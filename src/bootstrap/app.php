@@ -11,8 +11,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-     // Banned Middleware   
-    $middleware->web(append: [\App\Http\Middleware\CheckBanned::class,]);
+        $middleware->validateCsrfTokens(except: [
+            'webhook/fonnte',
+            'api/webhook/fonnte',
+        ]);
+
+        // Banned Middleware   
+        $middleware->web(append: [\App\Http\Middleware\CheckBanned::class,]);
 
     // Admin Middleware
     $middleware->alias([

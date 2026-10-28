@@ -65,9 +65,10 @@ class TaskOverdue extends Notification
 
         $message = "Halo *{$notifiable->name}*! 👋\n\n"
         . "🚨 *Task Telat Deadline!*\n\n"
-        . "📌 *{$this->todo->title}*\n"
+        . "📌 *{$this->todo->title}* [ID: #{$this->todo->id}]\n"
         . "📅 Deadline: *{$deadline->format('d M Y, H:i')}*\n\n"
-        . "Task ini sudah melewati deadline. Segera selesaikan! ⚡\n\n"
+        . "Task ini sudah melewati deadline. Segera selesaikan! ⚡\n"
+        . "👉 Balas *DONE {$this->todo->id}* jika sudah selesai!\n\n"
         . "_— Wassup Task_";
 
         Http::withHeaders([
