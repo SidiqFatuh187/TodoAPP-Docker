@@ -56,10 +56,12 @@ services:
     networks:
       - todo_network
   tunnel:
-    image: cloudflare/cloudflared:latest
+    image: ngrok/ngrok:latest
     container_name: todo_tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://nginx:80
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command: http --url=${NGROK_DOMAIN} nginx:80
     depends_on:
       - nginx
     networks:
