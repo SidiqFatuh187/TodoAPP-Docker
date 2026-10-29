@@ -72,7 +72,9 @@ Route::middleware(['auth', 'timezone'])->group(function () {
     });
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notification/{id}/read', [NotificationController::class, 'readAndRedirect'])->name('notification.readAndRedirect');
     Route::post('/notification/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notification.markAllRead');
+    Route::delete('/notifications/destroy-selected', [NotificationController::class, 'destroySelected'])->name('notification.destroySelected');
     Route::delete('/notifications/destroy-all', [NotificationController::class, 'destroyAllnotifications'])->name('notification.destroyAll');
     Route::delete('/notification/{id}',        [NotificationController::class, 'destroy'])->name('notification.destroy');
 
