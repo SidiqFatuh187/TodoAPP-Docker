@@ -82,11 +82,19 @@ class SendTaskNotifications extends Command
                     $tomorrowTasks = $allPending->filter(function ($todo) use ($timezone, $tomorrowStr) {
                         return Carbon::parse($todo->deadline)->setTimezone($timezone)->toDateString() === $tomorrowStr;
                     });
+                    // Ambil tugas yang selesai dalam 24 jam terakhir
+                    $recentCompleted = Todo::where('user_id', $user->id)
+                        ->where('status', 'completed')
+                        ->whereNotNull('completed_at')
+                        ->where('completed_at', '>=', $userNow->copy()->subHours(24))
+                        ->orderBy('completed_at', 'desc')
+                        ->take(5)
+                        ->get();
 
-                    // Hanya kirim jika ada tugas hari ini atau besok
-                    if ($todayTasks->count() > 0 || $tomorrowTasks->count() > 0) {
-                        $user->notify(new MorningDigestNotification($todayTasks, $tomorrowTasks));
-                        $this->info("Morning digest sent: [{$user->name}] ({$todayTasks->count()} today, {$tomorrowTasks->count()} tomorrow)");
+                    // Kirim jika ada tugas hari ini, besok, atau tugas yang baru selesai
+                    if ($todayTasks->count() > 0 || $tomorrowTasks->count() > 0 || $recentCompleted->count() > 0) {
+                        $user->notify(new MorningDigestNotification($todayTasks, $tomorrowTasks, $recentCompleted));
+                        $this->info("Morning digest sent: [{$user->name}] ({$todayTasks->count()} today, {$tomorrowTasks->count()} tomorrow, {$recentCompleted->count()} completed)");
                     }
                 }
             });
