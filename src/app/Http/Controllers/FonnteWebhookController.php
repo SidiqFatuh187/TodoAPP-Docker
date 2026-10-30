@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 class FonnteWebhookController extends Controller
 {
@@ -80,14 +81,16 @@ class FonnteWebhookController extends Controller
     {
         $upper = strtoupper(trim($message));
         $firstWord = strtoupper(strtok($upper, " \t\n\r") ?: '');
-
         return match ($firstWord) {
-            'DONE', 'SELESAI' => $this->handleDone($user, $message),
-            'TUNDA', 'SNOOZE' => $this->handleSnooze($user, $message),
-            'TODO', 'BUAT'    => $this->handleQuickCreate($user, $message),
-            'TUGAS', 'LIST'   => $this->handleList($user),
+            'DONE', 'SELESAI'           => $this->handleDone($user, $message),
+            'TUNDA', 'SNOOZE'           => $this->handleSnooze($user, $message),
+            'HAPUS', 'DELETE', 'DEL'    => $this->handleDelete($user, $message),
+            'CARI', 'SEARCH', 'FIND'    => $this->handleSearch($user, $message),
+            'REKAP', 'SUMMARY', 'STATS' => $this->handleSummary($user),
+            'TODO', 'BUAT'              => $this->handleQuickCreate($user, $message),
+            'TUGAS', 'LIST'             => $this->handleList($user),
             'HELP', 'BANTUAN', 'MENU', 'INFO' => $this->handleHelp($user),
-            default           => $this->handleFallback($user, $message),
+            default                     => $this->handleFallback($user, $message),
         };
     }
 
@@ -186,6 +189,131 @@ class FonnteWebhookController extends Controller
 
         return "⏰ Siap *{$user->name}*! Deadline tugas *'{$todo->title}'* (ID: #{$taskId}) diundur {$addedDesc}.\n\n📅 Batas baru: *{$formattedDeadline}* ({$timezone})";
     }
+    /**
+     * Delete a task: HAPUS <id> / DEL <id>
+     */
+    protected function handleDelete(User $user, string $message): string
+    {
+        if (!preg_match('/^(?:HAPUS|DELETE|DEL)\s+#?(\d+)/i', trim($message), $matches)) {
+            return "⚠️ Format salah. Ketik *HAPUS <ID_TUGAS>* (contoh: *HAPUS 34*).\n\nKetik *TUGAS* untuk melihat daftar ID tugas kamu.";
+        }
+
+        $taskId = (int) $matches[1];
+        $todo = Todo::where('id', $taskId)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$todo) {
+            return "❌ Tugas dengan ID *#{$taskId}* tidak ditemukan atau bukan milik kamu.\nKetik *TUGAS* untuk cek daftar tugas aktif.";
+        }
+
+        $title = $todo->title;
+
+        // Hapus lampiran file jika ada
+        if ($todo->file_path && Storage::disk('public')->exists($todo->file_path)) {
+            Storage::disk('public')->delete($todo->file_path);
+        }
+
+        $todo->delete();
+
+        ActivityLog::create([
+            'user_id'     => $user->id,
+            'type'        => 'task_deleted',
+            'description' => "Menghapus tugas via WhatsApp: {$title}",
+        ]);
+
+        return "🗑️ Tugas *'{$title}'* (ID: #{$taskId}) berhasil dihapus dari daftar kamu.";
+    }
+
+    /**
+     * Search tasks: CARI <kata kunci> / SEARCH <kata kunci>
+     */
+    protected function handleSearch(User $user, string $message): string
+    {
+        $keyword = trim(preg_replace('/^(?:CARI|SEARCH|FIND)\s+/i', '', trim($message)));
+        if ($keyword === '') {
+            return "⚠️ Format salah. Ketik *CARI <kata kunci>* (contoh: *CARI praktikum*).";
+        }
+
+        $timezone = $user->timezone ?? 'Asia/Jakarta';
+        $todos = Todo::where('user_id', $user->id)
+            ->where(function ($q) use ($keyword) {
+                $q->where('title', 'like', "%{$keyword}%")
+                  ->orWhere('description', 'like', "%{$keyword}%");
+            })
+            ->latest('id')
+            ->take(10)
+            ->get();
+
+        if ($todos->isEmpty()) {
+            return "🔍 Tidak ditemukan tugas dengan kata kunci *\"{$keyword}\"*.\n\nKetik *TUGAS* untuk melihat daftar tugas aktif.";
+        }
+
+        $message = "🔍 *Hasil Pencarian \"{$keyword}\" ({$todos->count()}):*\n\n";
+        $i = 1;
+        foreach ($todos as $todo) {
+            $statusIcon = $todo->status === 'completed' ? '✅' : '⏳';
+            $statusText = $todo->status === 'completed' ? 'Selesai' : 'Pending';
+            $deadlineStr = $todo->deadline 
+                ? Carbon::parse($todo->deadline)->setTimezone($timezone)->translatedFormat('d M Y, H:i')
+                : 'Tanpa deadline';
+
+            $priorityBadge = match($todo->priority) {
+                'high'   => '🔴 Tinggi',
+                'low'    => '🟢 Rendah',
+                default  => '🟡 Sedang',
+            };
+
+            $message .= "{$i}. {$statusIcon} [ID: *#{$todo->id}*] *{$todo->title}*\n"
+                      . "   ⏰ Deadline: {$deadlineStr}\n"
+                      . "   🎯 Prioritas: {$priorityBadge} | Status: {$statusText}\n";
+            $i++;
+        }
+
+        $message .= "\n👉 Balas *DONE <id>* untuk menyelesaikan tugas.\n"
+                  . "👉 Balas *HAPUS <id>* untuk menghapus tugas.";
+
+        return $message;
+    }
+
+    /**
+     * On-demand summary of tasks: REKAP / SUMMARY
+     */
+    protected function handleSummary(User $user): string
+    {
+        $timezone = $user->timezone ?? 'Asia/Jakarta';
+        $now = Carbon::now($timezone);
+
+        $todayCompleted = Todo::where('user_id', $user->id)
+            ->where('status', 'completed')
+            ->whereDate('completed_at', $now->toDateString())
+            ->count();
+
+        $activeTasks = Todo::where('user_id', $user->id)
+            ->whereIn('status', ['pending', 'active'])
+            ->count();
+
+        $overdueTasks = Todo::where('user_id', $user->id)
+            ->whereIn('status', ['pending', 'active'])
+            ->whereNotNull('deadline')
+            ->where('deadline', '<', now())
+            ->count();
+
+        $highTasks = Todo::where('user_id', $user->id)
+            ->whereIn('status', ['pending', 'active'])
+            ->where('priority', 'high')
+            ->count();
+
+        $todayStr = $now->translatedFormat('l, d F Y');
+
+        return "📊 *Rekap Progres Tugas Kamu*\n"
+             . "📅 Hari ini: *{$todayStr}*\n\n"
+             . "✅ Selesai Hari Ini: *{$todayCompleted} tugas*\n"
+             . "⏳ Masih Aktif / Pending: *{$activeTasks} tugas*\n"
+             . "🔴 Prioritas Tinggi: *{$highTasks} tugas*\n"
+             . "🚨 Terlambat (Overdue): *{$overdueTasks} tugas*\n\n"
+             . "👉 Ketik *TUGAS* untuk melihat rincian tugas aktif kamu.";
+    }
 
     /**
      * Quick-create task: TODO <judul> [deadline opsional] [prioritas opsional]
@@ -200,8 +328,27 @@ class FonnteWebhookController extends Controller
         $timezone = $user->timezone ?? 'Asia/Jakarta';
         $parsed   = $this->parseTaskInput($raw, $timezone);
 
-        // Cari atau buat kategori default
-        $category = Category::where('user_id', $user->id)->first();
+        // Cari atau buat kategori
+        $category = null;
+        if (!empty($parsed['category'])) {
+            $category = Category::where('user_id', $user->id)
+                ->where('name', 'like', '%' . $parsed['category'] . '%')
+                ->first();
+
+            if (!$category) {
+                $category = Category::create([
+                    'user_id' => $user->id,
+                    'name'    => ucfirst($parsed['category']),
+                    'color'   => '#6366f1',
+                    'icon'    => 'tasks',
+                ]);
+            }
+        }
+
+        if (!$category) {
+            $category = Category::where('user_id', $user->id)->first();
+        }
+
         if (!$category) {
             $category = Category::create([
                 'user_id' => $user->id,
@@ -210,7 +357,6 @@ class FonnteWebhookController extends Controller
                 'icon'    => 'tasks',
             ]);
         }
-
         $todo = Todo::create([
             'user_id'     => $user->id,
             'category_id' => $category->id,
@@ -300,20 +446,23 @@ class FonnteWebhookController extends Controller
     {
         return "🤖 *Wassup Task — Asisten WhatsApp*\n\n"
              . "Halo *{$user->name}*! Berikut format perintah yang bisa kamu kirim:\n\n"
-             . "📝 *Buat Tugas Baru:*\n"
-             . "• *TODO <Judul> | <Deadline> | <Prioritas>*\n"
-             . "  Contoh: _TODO Sarapan Pagi | besok 08:00 | tinggi_\n"
-             . "  Contoh: _TODO Laporan Praktikum besok jam 5 sore penting_\n\n"
+             . "📝 *Buat Tugas:*\n"
+             . "• *TODO <Judul> | <Deadline> | <Kategori/Prioritas>*\n"
+             . "  Contoh: _TODO Makalah Fisika | besok 17:00 | Kuliah | tinggi_\n"
+             . "  Contoh: _TODO besok jam 8 pagi sarapan santai_\n\n"
              . "✅ *Selesaikan Tugas:*\n"
-             . "• *DONE <id>* atau *SELESAI <id>*\n"
-             . "  Contoh: _DONE 31_\n\n"
+             . "• *DONE <id>* (contoh: _DONE 31_)\n\n"
              . "⏰ *Undur Deadline:*\n"
-             . "• *TUNDA <id> <durasi>*\n"
-             . "  Contoh: _TUNDA 31 2h_ atau _TUNDA 31 1d_\n\n"
+             . "• *TUNDA <id> <durasi>* (contoh: _TUNDA 31 2h_)\n\n"
+             . "🗑️ *Hapus Tugas:*\n"
+             . "• *HAPUS <id>* (contoh: _HAPUS 34_)\n\n"
+             . "🔍 *Cari Tugas:*\n"
+             . "• *CARI <kata kunci>* (contoh: _CARI praktikum_)\n\n"
+             . "📊 *Rekap Progres:*\n"
+             . "• *REKAP*\n\n"
              . "📋 *Daftar Tugas Aktif:*\n"
              . "• *TUGAS* atau *LIST*\n\n"
-             . "💡 *HELP*\n"
-             . "Tampilkan panduan ini.";
+             . "💡 *HELP* — Tampilkan panduan ini.";
     }
 
     /**
@@ -325,26 +474,53 @@ class FonnteWebhookController extends Controller
     {
         $priority = 'medium';
         $deadline = null;
+        $category = null;
         $title    = $rawInput;
 
-        // 1. Explicit Separator: Title | Deadline | Priority
+        // 1. Explicit Separator: Title | Deadline | Category/Priority
         if (str_contains($rawInput, '|')) {
             $parts = array_map('trim', explode('|', $rawInput));
             $title = $parts[0];
 
-            if (isset($parts[1]) && $parts[1] !== '') {
-                $deadline = $this->parseDateTimeString($parts[1], $timezone);
-            }
+            for ($i = 1; $i < count($parts); $i++) {
+                $part = $parts[$i];
+                if ($part === '') continue;
 
-            if (isset($parts[2]) && $parts[2] !== '') {
-                $priority = $this->parsePriorityString($parts[2]);
+                if ($this->isPriorityString($part)) {
+                    $priority = $this->parsePriorityString($part);
+                    continue;
+                }
+
+                $dt = $this->parseDateTimeString($part, $timezone);
+                if ($dt) {
+                    $deadline = $dt;
+                    continue;
+                }
+
+                $category = $part;
             }
 
             return [
                 'title'    => $title ?: $rawInput,
                 'deadline' => $deadline,
                 'priority' => $priority,
+                'category' => $category,
             ];
+        }
+
+        // 2. Keyword-based Priority
+        if (preg_match('/\b(urgent|darurat|penting|tinggi|high)\b/i', $title)) {
+            $priority = 'high';
+            $title = trim(preg_replace('/\b(urgent|darurat|penting|tinggi|high)\b/i', '', $title));
+        } elseif (preg_match('/\b(santai|rendah|low)\b/i', $title)) {
+            $priority = 'low';
+            $title = trim(preg_replace('/\b(santai|rendah|low)\b/i', '', $title));
+        }
+
+        // 3. Keyword-based Category: kategori <nama>
+        if (preg_match('/\bkategori\s+([a-zA-Z0-9_\-]+)\b/i', $title, $km)) {
+            $category = trim($km[1]);
+            $title = trim(preg_replace('/\bkategori\s+' . preg_quote($km[1], '/') . '\b/i', '', $title));
         }
 
         // 2. Keyword-based Priority
@@ -506,6 +682,12 @@ class FonnteWebhookController extends Controller
         }
 
         return $base->setTime(17, 0, 0);
+    }
+
+    protected function isPriorityString(string $str): bool
+    {
+        $clean = strtolower(trim($str));
+        return in_array($clean, ['high', 'tinggi', 'penting', 'urgent', 'darurat', 'medium', 'sedang', 'normal', 'low', 'rendah', 'santai'], true);
     }
 
     protected function parsePriorityString(string $str): string

@@ -340,4 +340,116 @@ class FonnteWebhookTest extends TestCase
                 && str_contains($msg, '15:30');
         });
     }
+
+    public function test_delete_command_deletes_task(): void
+    {
+        $user = User::factory()->create(['phone' => '081234567890']);
+        $category = Category::create([
+            'user_id' => $user->id,
+            'name'    => 'Umum',
+            'color'   => '#6366f1',
+            'icon'    => 'tasks',
+        ]);
+        $todo = Todo::create([
+            'user_id'     => $user->id,
+            'category_id' => $category->id,
+            'title'       => 'Tugas Salah Ketik',
+            'status'      => 'pending',
+        ]);
+
+        $response = $this->postJson('/webhook/fonnte', [
+            'sender'  => '6281234567890',
+            'message' => "HAPUS {$todo->id}",
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('berhasil dihapus', $response->json('reply'));
+        $this->assertDatabaseMissing('todos', ['id' => $todo->id]);
+    }
+
+    public function test_search_command_finds_task(): void
+    {
+        $user = User::factory()->create(['phone' => '081234567890']);
+        $category = Category::create([
+            'user_id' => $user->id,
+            'name'    => 'Kuliah',
+            'color'   => '#3b82f6',
+            'icon'    => 'book',
+        ]);
+        Todo::create([
+            'user_id'     => $user->id,
+            'category_id' => $category->id,
+            'title'       => 'Laporan Praktikum Fisika',
+            'status'      => 'pending',
+        ]);
+
+        $response = $this->postJson('/webhook/fonnte', [
+            'sender'  => '6281234567890',
+            'message' => 'CARI praktikum',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('Hasil Pencarian', $response->json('reply'));
+        $this->assertStringContainsString('Laporan Praktikum Fisika', $response->json('reply'));
+    }
+
+    public function test_rekap_command_returns_summary(): void
+    {
+        $user = User::factory()->create(['phone' => '081234567890']);
+        $category = Category::create([
+            'user_id' => $user->id,
+            'name'    => 'Umum',
+            'color'   => '#6366f1',
+            'icon'    => 'tasks',
+        ]);
+        Todo::create([
+            'user_id'      => $user->id,
+            'category_id'  => $category->id,
+            'title'        => 'Tugas Sudah Selesai',
+            'status'       => 'completed',
+            'completed_at' => now(),
+        ]);
+        Todo::create([
+            'user_id'     => $user->id,
+            'category_id' => $category->id,
+            'title'       => 'Tugas Masih Pending',
+            'status'      => 'pending',
+            'priority'    => 'high',
+        ]);
+
+        $response = $this->postJson('/webhook/fonnte', [
+            'sender'  => '6281234567890',
+            'message' => 'REKAP',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('Rekap Progres Tugas Kamu', $response->json('reply'));
+        $this->assertStringContainsString('Selesai Hari Ini: *1 tugas*', $response->json('reply'));
+        $this->assertStringContainsString('Masih Aktif / Pending: *1 tugas*', $response->json('reply'));
+        $this->assertStringContainsString('Prioritas Tinggi: *1 tugas*', $response->json('reply'));
+    }
+
+    public function test_quick_create_with_custom_category(): void
+    {
+        $user = User::factory()->create(['phone' => '081234567890']);
+        $category = Category::create([
+            'user_id' => $user->id,
+            'name'    => 'Pribadi',
+            'color'   => '#10b981',
+            'icon'    => 'user',
+        ]);
+
+        $response = $this->postJson('/webhook/fonnte', [
+            'sender'  => '6281234567890',
+            'message' => 'TODO Beli vitamin | besok 20:00 | Pribadi | tinggi',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('Tugas baru berhasil dicatat', $response->json('reply'));
+        $this->assertStringContainsString('Pribadi', $response->json('reply'));
+
+        $todo = Todo::where('user_id', $user->id)->first();
+        $this->assertEquals($category->id, $todo->category_id);
+        $this->assertEquals('high', $todo->priority);
+    }
 }
