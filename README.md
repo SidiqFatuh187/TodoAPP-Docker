@@ -75,9 +75,13 @@ Aplikasi ini juga dilengkapi panel admin, reset password via OTP (email), dan pe
 Pengguna bisa mengontrol tugas langsung dari chat WhatsApp tanpa membuka website:
 - **`DONE <id>`** atau **`SELESAI <id>`**: Menandai tugas selesai secara instan.
 - **`TUNDA <id> <durasi>`**: Mengundur deadline tugas (contoh: `TUNDA 12 2h`, `TUNDA 12 1d`).
-- **`TODO <judul>`**: Mencatat tugas baru cepat langsung dari WhatsApp.
+- **`HAPUS <id>`** atau **`DEL <id>`**: Menghapus tugas dari sistem langsung dari WhatsApp.
+- **`CARI <kata kunci>`**: Mencari tugas aktif atau riwayat berdasarkan kata kunci.
+- **`REKAP`** atau **`SUMMARY`**: Menampilkan ringkasan progres tugas hari ini (selesai vs pending).
+- **`TODO <judul>`**: Mencatat tugas baru cepat dengan deteksi otomatis deadline, jam, kategori, dan prioritas.
 - **`TUGAS`** atau **`LIST`**: Menampilkan daftar tugas aktif beserta deadline dan ID-nya.
-- **`HELP`** atau **`BANTUAN`**: Menampilkan petunjuk format perintah.
+- **`HELP`** atau **`BANTUAN`**: Menampilkan petunjuk format perintah lengkap.
+
 ### 🔐 Autentikasi & Keamanan
 - Register, Login, Logout
 - Reset password via **kode OTP yang dikirim ke email** (menggunakan Resend API)
