@@ -181,18 +181,64 @@ class FonnteWebhookTest extends TestCase
 
         $response = $this->postJson('/webhook/fonnte', [
             'sender'  => '6281234567890',
-            'message' => 'TODO Beli tiket seminar besok',
+            'message' => 'TODO Beli tiket seminar',
         ]);
 
         $response->assertStatus(200);
         $this->assertStringContainsString('Tugas baru berhasil dicatat', $response->json('reply'));
-        $this->assertStringContainsString('Beli tiket seminar besok', $response->json('reply'));
+        $this->assertStringContainsString('Beli tiket seminar', $response->json('reply'));
 
         $this->assertDatabaseHas('todos', [
             'user_id' => $user->id,
-            'title'   => 'Beli tiket seminar besok',
+            'title'   => 'Beli tiket seminar',
             'status'  => 'pending',
         ]);
+    }
+
+    public function test_quick_create_with_natural_deadline_and_time(): void
+    {
+        $user = User::factory()->create([
+            'phone'    => '081234567890',
+            'timezone' => 'Asia/Jakarta',
+        ]);
+
+        $response = $this->postJson('/webhook/fonnte', [
+            'sender'  => '6281234567890',
+            'message' => 'TODO besok ingatin jam 8 pagi mau sarapan',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('Tugas baru berhasil dicatat', $response->json('reply'));
+        $this->assertStringContainsString('Deadline:', $response->json('reply'));
+        $this->assertStringContainsString('Pengingat Otomatis Aktif', $response->json('reply'));
+
+        $todo = Todo::where('user_id', $user->id)->first();
+        $this->assertNotNull($todo->deadline);
+        $this->assertEquals(8, Carbon::parse($todo->deadline)->setTimezone('Asia/Jakarta')->hour);
+    }
+
+    public function test_quick_create_with_pipe_separator_and_priority(): void
+    {
+        $user = User::factory()->create([
+            'phone'    => '081234567890',
+            'timezone' => 'Asia/Jakarta',
+        ]);
+
+        $response = $this->postJson('/webhook/fonnte', [
+            'sender'  => '6281234567890',
+            'message' => 'TODO Makalah Fisika | besok 17:00 | tinggi',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('Tugas baru berhasil dicatat', $response->json('reply'));
+        $this->assertStringContainsString('Makalah Fisika', $response->json('reply'));
+        $this->assertStringContainsString('Tinggi', $response->json('reply'));
+
+        $todo = Todo::where('user_id', $user->id)->first();
+        $this->assertEquals('Makalah Fisika', $todo->title);
+        $this->assertEquals('high', $todo->priority);
+        $this->assertNotNull($todo->deadline);
+        $this->assertEquals(17, Carbon::parse($todo->deadline)->setTimezone('Asia/Jakarta')->hour);
     }
 
     public function test_list_command_shows_active_tasks(): void
@@ -252,5 +298,46 @@ class FonnteWebhookTest extends TestCase
         $responseAuthorized = $this->withHeader('X-Webhook-Secret', 'secret123')
             ->postJson('/webhook/fonnte', []);
         $responseAuthorized->assertStatus(200);
+    }
+
+    public function test_morning_digest_includes_completed_tasks_and_priorities(): void
+    {
+        $user = User::factory()->create([
+            'phone'    => '081234567890',
+            'name'     => 'Sidiq Fatuh Rahman',
+            'timezone' => 'Asia/Jakarta',
+        ]);
+
+        $completedTask = new Todo([
+            'title'        => 'Sarapan Pagi',
+            'status'       => 'completed',
+            'completed_at' => now(),
+        ]);
+        $completedTask->id = 101;
+
+        $todayTask = new Todo([
+            'title'    => 'Tugas Praktikum',
+            'status'   => 'pending',
+            'priority' => 'high',
+            'deadline' => now()->setTime(15, 30),
+        ]);
+        $todayTask->id = 102;
+
+        $notif = new \App\Notifications\MorningDigestNotification(
+            collect([$todayTask]),
+            collect(),
+            collect([$completedTask])
+        );
+
+        $notif->toWhatsapp($user);
+
+        \Illuminate\Support\Facades\Http::assertSent(function ($request) {
+            $msg = $request['message'];
+            return str_contains($msg, 'Tugas yang Berhasil Kamu Selesaikan')
+                && str_contains($msg, 'Sarapan Pagi')
+                && str_contains($msg, 'Tugas Praktikum')
+                && str_contains($msg, 'Tinggi')
+                && str_contains($msg, '15:30');
+        });
     }
 }
