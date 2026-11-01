@@ -84,8 +84,11 @@ Route::middleware(['auth', 'timezone'])->group(function () {
     Route::get('/', [ProfileController::class, 'index'])->name('index');
     Route::get('/edit', [ProfileController::class, 'edit'])->name('edit');
     Route::put('/update', [ProfileController::class, 'update'])->name('update');
-    Route::get('/password', [ProfileController::class, 'passwordForm'])->name('password');
-    Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
+        Route::get('/password', [ProfileController::class, 'passwordForm'])->name('password');
+        Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
+        Route::get('/verify-phone', [ProfileController::class, 'verifyPhoneView'])->name('verify-phone');
+        Route::post('/verify-phone', [ProfileController::class, 'verifyPhoneSubmit'])->name('verify-phone.submit');
+        Route::post('/resend-phone-otp', [ProfileController::class, 'resendPhoneOtp'])->name('resend-phone-otp');
     });
 
    

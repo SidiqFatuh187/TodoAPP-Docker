@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
-
+use Carbon\Carbon;
 class ProfileController extends Controller
 {
     public function index()
@@ -44,6 +44,7 @@ class ProfileController extends Controller
 
         $user = Auth::user();
         $oldPhone = $user->phone;
+        $newPhone = $request->phone ? preg_replace('/\D/', '', $request->phone) : null;
 
         try {
             if ($request->hasFile('avatar')) {
@@ -56,22 +57,124 @@ class ProfileController extends Controller
 
             $user->name  = $request->name;
             $user->email = $request->email;
-            $user->phone = $request->phone;
             $user->bio   = $request->bio;
+
+            // Jika nomor HP dikosongkan
+            if (empty($newPhone)) {
+                $user->phone = null;
+                $user->save();
+                session()->forget(['pending_phone', 'phone_otp', 'phone_otp_expires']);
+                return redirect()->route('profile.index')->with('success', 'Profil berhasil diperbarui.');
+            }
+
+            // Jika nomor HP tidak berubah
+            if ($newPhone === $oldPhone) {
+                $user->save();
+                return redirect()->route('profile.index')->with('success', 'Profil berhasil diperbarui.');
+            }
+
+            // Simpan perubahan profil dasar terlebih dahulu
             $user->save();
 
-            // Trigger welcome
-            if ($request->phone && !$oldPhone) {
-                $this->sendWhatsAppWelcome($request->phone, $user->name);
-            }
-            // Ganti nomer 
-            elseif ($request->phone && $oldPhone && $request->phone !== $oldPhone){
-                $this->sendWhatsAppConfirmChange($request->phone, $user->name);
-            }
+            // Generate OTP 4 digit untuk nomor baru
+            $otp = (string) random_int(1000, 9999);
+            session([
+                'pending_phone'     => $newPhone,
+                'phone_otp'         => $otp,
+                'phone_otp_expires' => Carbon::now()->addMinutes(10),
+            ]);
 
-            return redirect()->route('profile.index')->with('success', 'Profil berhasil diperbarui.');
+            $this->sendPhoneOtp($newPhone, $otp, $user->name);
+
+            return redirect()->route('profile.verify-phone')->with('info', "Kode verifikasi 4 digit telah dikirim ke WhatsApp {$newPhone}.");
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Gagal memperbarui profil, coba lagi.');
+        }
+    }
+
+    public function verifyPhoneView()
+    {
+        if (!session('pending_phone')) {
+            return redirect()->route('profile.index');
+        }
+
+        $title    = 'Profile';
+        $subtitle = 'Verifikasi WhatsApp';
+        $pendingPhone = session('pending_phone');
+
+        return view('profile.verify-phone', compact('title', 'subtitle', 'pendingPhone'));
+    }
+
+    public function verifyPhoneSubmit(Request $request)
+    {
+        $request->validate([
+            'otp' => 'required|digits:4',
+        ], [
+            'otp.required' => 'Kode OTP wajib diisi.',
+            'otp.digits'   => 'Kode OTP harus berupa 4 digit angka.',
+        ]);
+
+        $pendingPhone = session('pending_phone');
+        $sessionOtp   = session('phone_otp');
+        $expiresAt    = session('phone_otp_expires');
+
+        if (!$pendingPhone || !$sessionOtp) {
+            return redirect()->route('profile.edit')->with('error', 'Sesi verifikasi telah berakhir. Silakan masukkan nomor kembali.');
+        }
+
+        if (Carbon::now()->gt($expiresAt)) {
+            return back()->with('error', 'Kode verifikasi telah kadaluwarsa. Silakan kirim ulang.');
+        }
+
+        if ($request->otp !== $sessionOtp) {
+            return back()->with('error', 'Kode verifikasi salah.');
+        }
+
+        $user = Auth::user();
+        $isFirstTime = empty($user->phone);
+        $user->phone = $pendingPhone;
+        $user->save();
+
+        session()->forget(['pending_phone', 'phone_otp', 'phone_otp_expires']);
+
+        if ($isFirstTime) {
+            $this->sendWhatsAppWelcome($user->phone, $user->name);
+        } else {
+            $this->sendWhatsAppConfirmChange($user->phone, $user->name);
+        }
+
+        return redirect()->route('profile.index')->with('success', 'Nomor WhatsApp berhasil diverifikasi dan terhubung!');
+    }
+
+    public function resendPhoneOtp()
+    {
+        $pendingPhone = session('pending_phone');
+        if (!$pendingPhone) {
+            return redirect()->route('profile.edit');
+        }
+
+        $otp = (string) random_int(1000, 9999);
+        session([
+            'phone_otp'         => $otp,
+            'phone_otp_expires' => Carbon::now()->addMinutes(10),
+        ]);
+
+        $this->sendPhoneOtp($pendingPhone, $otp, Auth::user()->name);
+
+        return back()->with('info', "Kode verifikasi baru telah dikirim ke WhatsApp {$pendingPhone}.");
+    }
+
+    private function sendPhoneOtp(string $phone, string $otp, string $name): void
+    {
+        try {
+            Http::withHeaders([
+                'Authorization' => config('services.fonnte.token'),
+            ])->post(config('services.fonnte.url', 'https://api.fonnte.com/send'), [
+                'target'  => $phone,
+                'message' => "🔒 *Wassup Task*\n\nHalo *{$name}*! Kode verifikasi untuk menghubungkan nomor WhatsApp kamu adalah: *{$otp}*\n\nKode ini berlaku selama 10 menit. Jangan berikan kode ini kepada siapa pun.",
+            ]);
+        } catch (\Throwable $e) {
+            logger()->error('Gagal kirim WA OTP: ' . $e->getMessage());
         }
     }
 
