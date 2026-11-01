@@ -55,6 +55,23 @@ services:
       - mysql
     networks:
       - todo_network
+  worker:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: todo_worker
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      - HOME=/tmp/var/www/html
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=90
+    volumes:
+      - ./src:/var/www/html
+    depends_on:
+      - php
+      - mysql
+    networks:
+      - todo_network
   tunnel:
     image: ngrok/ngrok:latest
     container_name: todo_tunnel
