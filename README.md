@@ -160,7 +160,7 @@ Http::withHeaders([
 
 ## 🐳 Arsitektur Docker
 
-`docker-compose.yml` menjalankan 6 service:
+`docker-compose.yml` menjalankan 7 service:
 
 | Service | Image / Build | Port | Fungsi |
 |---|---|---|---|
@@ -168,6 +168,7 @@ Http::withHeaders([
 | `nginx` | `nginx:alpine` | `8000` → `80` | Web server, meneruskan request PHP ke container `php` |
 | `php` | Custom (`docker/php/Dockerfile`, base `php:8.4-fpm`) | `5173` (Vite dev server) | Menjalankan aplikasi Laravel, Composer, Node.js 22 & npm sudah terpasang di image |
 | `scheduler` | Custom (`docker/php/Dockerfile`) | - | Background worker yang otomatis menjalankan `php artisan schedule:work` setiap 60 detik |
+| `worker` | Custom (`docker/php/Dockerfile`) | - | Queue worker yang memproses pengiriman notifikasi Fonnte & email di background (`queue:work`) |
 | `tunnel` | `ngrok/ngrok:latest` | - | Public HTTPS Tunnel permanen (Ngrok static domain) untuk menerima incoming webhook WhatsApp Fonnte |
 | `mysql` | `mysql:8.0` | `3306` (localhost only) | Database utama (`todo_db`) |
 Semua service terhubung lewat network bridge `todo_network`, dengan volume persisten untuk data MySQL dan konfigurasi Nginx Proxy Manager.

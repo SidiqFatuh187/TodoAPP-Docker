@@ -199,11 +199,16 @@ class TodoController extends Controller
         $todo = Todo::where('user_id', Auth::id())->where('id', $id)->firstOrFail();
 
         try {
-            $wasCompleted = $todo->status !== 'completed' && $request->status === 'completed';
+            $newStatus = $request->input('status');
+            if (!$newStatus) {
+                $newStatus = $todo->status === 'completed' ? 'pending' : 'completed';
+            }
+
+            $wasCompleted = $todo->status !== 'completed' && $newStatus === 'completed';
 
             $todo->update([
-                'status'       => $request->status,
-                'completed_at' => $request->status === 'completed' ? now() : null,
+                'status'       => $newStatus,
+                'completed_at' => $newStatus === 'completed' ? now() : null,
             ]);
 
             // Log activity
@@ -213,7 +218,11 @@ class TodoController extends Controller
                 (new LogTaskActivity)->logUpdate(Auth::id());
             }
 
-            return response()->json(['success' => true]);
+            return response()->json([
+                'success'      => true,
+                'status'       => $todo->status,
+                'completed_at' => $todo->completed_at ? $todo->completed_at->format('Y-m-d H:i:s') : null,
+            ]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Gagal update status.'], 500);
         }

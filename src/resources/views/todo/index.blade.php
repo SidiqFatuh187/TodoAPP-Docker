@@ -99,7 +99,7 @@
     @else
         <div class="flex flex-col gap-3">
             @foreach($todos as $todo)
-                <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                <div class="todo-item-row bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
 
                   {{-- Status Toggle --}}
                     @php
@@ -110,7 +110,7 @@
                         };
                     @endphp
                     <button type="button"
-                        onclick="updateStatus({{ $todo->id }}, '{{ $todo->status }}')"
+                        onclick="updateStatus({{ $todo->id }}, '{{ $todo->status }}', this)"
                         title="{{ ucfirst($todo->status) }}"
                         class="shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all {{ $toggleClass }}">
                         @if($todo->status === 'completed')
@@ -126,7 +126,7 @@
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 flex-wrap">
                            <a href="{{ route('todo.show', $todo->id) }}"
-                            class="text-sm font-semibold text-gray-700 hover:text-blue-600 transition-colors {{ $todo->status === 'completed' ? 'line-through text-gray-400' : '' }}">
+                            class="todo-title text-sm font-semibold text-gray-700 hover:text-blue-600 transition-colors {{ $todo->status === 'completed' ? 'line-through text-gray-400' : '' }}">
                                 {{ $todo->title }}
                             </a>
 
@@ -152,7 +152,7 @@
                                     default     => 'bg-gray-50 text-gray-500',
                                 };
                             @endphp
-                            <span class="px-2 py-0.5 rounded-lg text-xs font-medium {{ $statusClass }}">
+                            <span class="todo-status-badge px-2 py-0.5 rounded-lg text-xs font-medium {{ $statusClass }}">
                                 {{ ucfirst($todo->status) }}
                             </span>
                         </div>
