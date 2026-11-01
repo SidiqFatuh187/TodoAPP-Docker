@@ -3,10 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Wassup Task">
     <title>@yield('title', 'Wassup Task')</title>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  @vite(['resources/css/app.css', 'resources/js/layoutsApp.js', 'resources/js/navbar-search.js', 'resources/js/notifications.js'])
+    @vite(['resources/css/app.css', 'resources/js/layoutsApp.js', 'resources/js/navbar-search.js', 'resources/js/notifications.js'])
 </head>
 <body class="bg-gray-50 min-h-screen flex">
     <x-modal-delete />
@@ -34,5 +39,14 @@
     </div>
 
     @stack('scripts')
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch((err) => {
+                    console.log('SW registration failed:', err);
+                });
+            });
+        }
+    </script>
 </body>
 </html>
