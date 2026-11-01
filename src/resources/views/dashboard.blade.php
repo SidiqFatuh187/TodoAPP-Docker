@@ -35,13 +35,12 @@
             </div>
             <div>
                 <p class="text-xs text-gray-400 font-medium">Completed</p>
-                <p class="text-2xl font-bold text-gray-800 mt-0.5">{{ $completedTasks }}</p>
+                <p id="stat-completed-count" class="text-2xl font-bold text-gray-800 mt-0.5">{{ $completedTasks }}</p>
                 <p class="text-xs text-gray-400 mt-0.5">
                     {{ $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0 }}% selesai
                 </p>
             </div>
         </div>
-
         <div class="bg-blue-600 rounded-2xl p-5 shadow-sm flex items-center gap-4">
             <div class="w-12 h-12 rounded-xl bg-blue-500 flex items-center justify-center shrink-0">
                 <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -50,7 +49,7 @@
             </div>
             <div>
                 <p class="text-xs text-blue-200 font-medium">Pending</p>
-                <p class="text-2xl font-bold text-white mt-0.5">{{ $pendingTasks }}</p>
+                <p id="stat-pending-count" class="text-2xl font-bold text-white mt-0.5">{{ $pendingTasks }}</p>
                 <p class="text-xs text-blue-200 mt-0.5">{{ $activeTasks }} sedang active</p>
             </div>
         </div>
@@ -88,21 +87,22 @@
 
             {{-- Todo Items --}}
             @forelse($recentTodos as $todo)
-                <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100 mb-2">
+                <div class="todo-item-row flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100 mb-2">
 
-                    {{-- Status dot --}}
-                    @php
-                        $dotClass = match($todo->status) {
-                            'completed' => 'bg-green-500',
-                            'active'    => 'bg-blue-500',
-                            default     => 'bg-yellow-400',
-                        };
-                    @endphp
-                    <div class="w-2 h-2 rounded-full shrink-0 {{ $dotClass }}"></div>
+                    {{-- Status checkbox --}}
+                    <button type="button"
+                        onclick="toggleTodoStatus({{ $todo->id }}, this)"
+                        data-status="{{ $todo->status }}"
+                        title="Tandai {{ $todo->status === 'completed' ? 'belum selesai' : 'selesai' }}"
+                        class="shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer {{ $todo->status === 'completed' ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 hover:border-emerald-400 bg-white' }}">
+                        <svg class="w-3 h-3 {{ $todo->status === 'completed' ? '' : 'hidden' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </button>
 
                     {{-- Content --}}
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium text-gray-700 truncate {{ $todo->status === 'completed' ? 'line-through text-gray-400' : '' }}">
+                        <p class="todo-title text-sm font-medium text-gray-700 truncate {{ $todo->status === 'completed' ? 'line-through text-gray-400' : '' }}">
                             {{ $todo->title }}
                         </p>
                         <div class="flex items-center gap-2 mt-0.5">
@@ -238,4 +238,71 @@
     </div>
 
 </div>
+@push('scripts')
+    <script>
+        function toggleTodoStatus(id, btnElement) {
+            var token = document.querySelector('meta[name="csrf-token"]');
+            if (!token) return;
+
+            var currentStatus = btnElement.getAttribute('data-status') || 'pending';
+            var next = currentStatus === 'completed' ? 'pending' : 'completed';
+
+            // Optimistic UI update
+            btnElement.setAttribute('data-status', next);
+            var svg = btnElement.querySelector('svg');
+            var row = btnElement.closest('.todo-item-row');
+            var title = row ? row.querySelector('.todo-title') : null;
+
+            if (next === 'completed') {
+                btnElement.classList.remove('border-gray-300', 'bg-white');
+                btnElement.classList.add('border-emerald-500', 'bg-emerald-500', 'text-white');
+                if (svg) svg.classList.remove('hidden');
+                if (title) title.classList.add('line-through', 'text-gray-400');
+            } else {
+                btnElement.classList.remove('border-emerald-500', 'bg-emerald-500', 'text-white');
+                btnElement.classList.add('border-gray-300', 'bg-white');
+                if (svg) svg.classList.add('hidden');
+                if (title) title.classList.remove('line-through', 'text-gray-400');
+            }
+
+            var completedEl = document.getElementById('stat-completed-count');
+            var pendingEl = document.getElementById('stat-pending-count');
+            if (completedEl && pendingEl) {
+                var c = parseInt(completedEl.textContent, 10) || 0;
+                var p = parseInt(pendingEl.textContent, 10) || 0;
+                if (next === 'completed') {
+                    completedEl.textContent = c + 1;
+                    pendingEl.textContent = Math.max(0, p - 1);
+                } else {
+                    completedEl.textContent = Math.max(0, c - 1);
+                    pendingEl.textContent = p + 1;
+                }
+            }
+
+            fetch('/todo/status/' + id, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': token.content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ status: next })
+            })
+            .then(function(res) {
+                if (!res.ok) throw new Error('Error ' + res.status);
+                return res.json();
+            })
+            .then(function(data) {
+                if (!data.success) {
+                    location.reload();
+                }
+            })
+            .catch(function(err) {
+                console.error('Toggle error:', err);
+                location.reload();
+            });
+        }
+        window.toggleTodoStatus = toggleTodoStatus;
+    </script>
+@endpush
 @endsection
