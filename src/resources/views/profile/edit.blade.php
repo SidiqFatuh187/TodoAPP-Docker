@@ -102,6 +102,9 @@
                         <p class="text-xs text-gray-400 mt-1.5">
                             Isi nomor WA agar kamu menerima reminder otomatis saat deadline mendekat.
                         </p>
+                        @error('phone')
+                            <p role="alert" class="mt-1.5 text-xs text-red-500">{{ $message }}</p>
+                        @enderror
 
                         <div class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-xl">
                             <p class="text-xs text-blue-700">
