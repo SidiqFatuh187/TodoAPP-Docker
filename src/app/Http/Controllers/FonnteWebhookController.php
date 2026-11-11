@@ -28,20 +28,15 @@ class FonnteWebhookController extends Controller
             ]);
         }
 
-        // 1. Optional Secret Verification
         $secret = config('services.fonnte.webhook_secret');
-        if ($secret) {
-            $incomingSecret = $request->header('X-Webhook-Secret') 
-                ?? $request->input('secret')
-                ?? $request->query('secret');
+        $incomingSecret = $request->header('X-Webhook-Secret')
+            ?? $request->input('secret')
+            ?? $request->query('secret');
 
-            if ($incomingSecret !== $secret) {
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
+        if (!is_string($secret) || $secret === ''
+            || !is_string($incomingSecret) || !hash_equals($secret, $incomingSecret)) {
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
-
-        // 2. Extract sender and message
-        Log::info('Fonnte incoming webhook payload:', $request->all());
 
         $rawSender = (string) ($request->input('sender') ?? $request->input('from') ?? '');
         $message   = trim((string) ($request->input('message') ?? ''));
@@ -54,7 +49,7 @@ class FonnteWebhookController extends Controller
         $user = $this->findUserByPhone($rawSender);
         if (!$user) {
             $reply = "Halo! 👋 Nomor WhatsApp ini (*{$rawSender}*) belum terdaftar di *Wassup Task*.\n\n"
-                   . "Silakan masukkan nomor ini di halaman Profil akun Wassup Task kamu untuk mengaktifkan fitur asisten WhatsApp.";
+                   . "Silakan tambahkan nomor ini di halaman Profil akun Wassup Task kamu dan selesaikan verifikasi OTP untuk mengaktifkan fitur asisten WhatsApp.";
             $this->sendWhatsappReply($rawSender, $reply);
             return response()->json(['reply' => $reply]);
         }
@@ -152,8 +147,11 @@ class FonnteWebhookController extends Controller
         }
 
         $timezone = $user->timezone ?? 'Asia/Jakarta';
-        $baseTime = ($todo->deadline && Carbon::parse($todo->deadline)->isFuture())
-            ? Carbon::parse($todo->deadline)
+        $storedDeadline = $todo->deadline
+            ? Carbon::parse($todo->getRawOriginal('deadline'), 'Asia/Jakarta')
+            : null;
+        $baseTime = $storedDeadline?->isFuture()
+            ? $storedDeadline->setTimezone($timezone)
             : Carbon::now($timezone);
 
         $addedDesc = '';
@@ -176,7 +174,7 @@ class FonnteWebhookController extends Controller
         }
 
         $todo->update([
-            'deadline' => $newDeadline,
+            'deadline' => $newDeadline->copy()->setTimezone('Asia/Jakarta'),
         ]);
 
         ActivityLog::create([
@@ -210,8 +208,8 @@ class FonnteWebhookController extends Controller
         $title = $todo->title;
 
         // Hapus lampiran file jika ada
-        if ($todo->file_path && Storage::disk('public')->exists($todo->file_path)) {
-            Storage::disk('public')->delete($todo->file_path);
+        if ($todo->file_path && Storage::disk('local')->exists($todo->file_path)) {
+            Storage::disk('local')->delete($todo->file_path);
         }
 
         $todo->delete();
@@ -255,7 +253,7 @@ class FonnteWebhookController extends Controller
             $statusIcon = $todo->status === 'completed' ? '✅' : '⏳';
             $statusText = $todo->status === 'completed' ? 'Selesai' : 'Pending';
             $deadlineStr = $todo->deadline 
-                ? Carbon::parse($todo->deadline)->setTimezone($timezone)->translatedFormat('d M Y, H:i')
+                ? Carbon::parse($todo->getRawOriginal('deadline'), 'Asia/Jakarta')->setTimezone($timezone)->translatedFormat('d M Y, H:i')
                 : 'Tanpa deadline';
 
             $priorityBadge = match($todo->priority) {
@@ -363,7 +361,7 @@ class FonnteWebhookController extends Controller
             'title'       => Str::limit($parsed['title'], 250),
             'status'      => 'pending',
             'priority'    => $parsed['priority'],
-            'deadline'    => $parsed['deadline'],
+            'deadline'    => $parsed['deadline']?->copy()->setTimezone('Asia/Jakarta'),
         ]);
 
         ActivityLog::create([
@@ -384,7 +382,7 @@ class FonnteWebhookController extends Controller
                . "🎯 Prioritas: {$priorityBadge}\n";
 
         if ($todo->deadline) {
-            $deadlineStr = Carbon::parse($todo->deadline)->setTimezone($timezone)->translatedFormat('l, d M Y — H:i');
+            $deadlineStr = Carbon::parse($todo->getRawOriginal('deadline'), 'Asia/Jakarta')->setTimezone($timezone)->translatedFormat('l, d M Y — H:i');
             $reply .= "⏰ Deadline: *{$deadlineStr}* ({$timezone})\n\n"
                     . "🔔 *Pengingat Otomatis Aktif:*\n"
                     . "Kamu akan menerima notifikasi WA otomatis menjelang batas deadline.\n\n";
@@ -418,7 +416,7 @@ class FonnteWebhookController extends Controller
         $i = 1;
         foreach ($todos as $todo) {
             $deadlineStr = $todo->deadline 
-                ? Carbon::parse($todo->deadline)->setTimezone($timezone)->translatedFormat('d M Y, H:i')
+                ? Carbon::parse($todo->getRawOriginal('deadline'), 'Asia/Jakarta')->setTimezone($timezone)->translatedFormat('d M Y, H:i')
                 : 'Tanpa deadline';
 
             $priorityBadge = match($todo->priority) {
@@ -468,7 +466,7 @@ class FonnteWebhookController extends Controller
     /**
      * Parse title, deadline, and priority from raw input text.
      *
-     * @return array{title: string, deadline: ?Carbon, priority: string}
+     * @return array{title: string, deadline: ?Carbon, priority: string, category: ?string}
      */
     protected function parseTaskInput(string $rawInput, string $timezone): array
     {
@@ -523,33 +521,25 @@ class FonnteWebhookController extends Controller
             $title = trim(preg_replace('/\bkategori\s+' . preg_quote($km[1], '/') . '\b/i', '', $title));
         }
 
-        // 2. Keyword-based Priority
-        if (preg_match('/\b(urgent|darurat|penting|tinggi|high)\b/i', $title)) {
-            $priority = 'high';
-            $title = trim(preg_replace('/\b(urgent|darurat|penting|tinggi|high)\b/i', '', $title));
-        } elseif (preg_match('/\b(santai|rendah|low)\b/i', $title)) {
-            $priority = 'low';
-            $title = trim(preg_replace('/\b(santai|rendah|low)\b/i', '', $title));
-        }
-
         // 3. Natural Language Deadline Parser
         $now = Carbon::now($timezone);
         $dateBase = null;
         $dayFound = false;
 
         // A. Indonesian Day / Period of Day matching
-        if (preg_match('/\b(besok\s+(?:pagi|siang|sore|malam)|besok)\b/i', $title, $m)) {
+        if (preg_match('/\bbesok\b/i', $title, $m)) {
             $dateBase = $now->copy()->addDay();
             $dayFound = true;
             $title = trim(preg_replace('/\b' . preg_quote($m[0], '/') . '\b/i', '', $title));
-        } elseif (preg_match('/\b(lusa\s+(?:pagi|siang|sore|malam)|lusa)\b/i', $title, $m)) {
+        } elseif (preg_match('/\blusa\b/i', $title, $m)) {
             $dateBase = $now->copy()->addDays(2);
             $dayFound = true;
             $title = trim(preg_replace('/\b' . preg_quote($m[0], '/') . '\b/i', '', $title));
-        } elseif (preg_match('/\b(hari ini|nanti\s+(?:pagi|siang|sore|malam)|sore ini|malam ini|siang ini|pagi ini|nanti)\b/i', $title, $m)) {
+        } elseif (preg_match('/\b(hari ini|nanti(?:\s+(?:pagi|siang|sore|malam))?|(?:sore|malam|siang|pagi)\s+ini)\b/i', $title, $m)) {
             $dateBase = $now->copy();
             $dayFound = true;
-            $title = trim(preg_replace('/\b' . preg_quote($m[0], '/') . '\b/i', '', $title));
+            $period = trim(preg_replace('/\b(?:hari ini|nanti|ini)\b/i', '', $m[0]));
+            $title = trim(preg_replace('/\b' . preg_quote($m[0], '/') . '\b/i', $period, $title));
         }
 
         // B. Time matching (HH:MM or HH.MM like 15:00, 15.00, jam 15:00, pukul 15.00)
@@ -616,6 +606,7 @@ class FonnteWebhookController extends Controller
             'title'    => $title ?: $rawInput,
             'deadline' => $deadline,
             'priority' => $priority,
+            'category' => $category,
         ];
     }
 
@@ -716,23 +707,32 @@ class FonnteWebhookController extends Controller
      */
     protected function findUserByPhone(string $rawPhone): ?User
     {
-        $clean = preg_replace('/@.*$/', '', $rawPhone);
-        $clean = preg_replace('/\D/', '', $clean);
-
-        if (empty($clean)) {
+        $phone = $this->normalizePhone($rawPhone);
+        if ($phone === '') {
             return null;
         }
 
-        $variants = [$clean];
-        if (str_starts_with($clean, '62')) {
-            $variants[] = '0' . substr($clean, 2);
-            $variants[] = '+' . $clean;
-        } elseif (str_starts_with($clean, '0')) {
-            $variants[] = '62' . substr($clean, 1);
-            $variants[] = '+62' . substr($clean, 1);
+        $match = null;
+        foreach (User::select(['id', 'name', 'phone', 'timezone', 'is_banned'])->whereNotNull('phone')->cursor() as $user) {
+            if ($this->normalizePhone($user->phone) !== $phone) {
+                continue;
+            }
+
+            if ($match !== null) {
+                return null;
+            }
+            $match = $user;
         }
 
-        return User::whereIn('phone', array_unique($variants))->orderBy('id', 'desc')->first();
+        return $match;
+    }
+
+    protected function normalizePhone(string $phone): string
+    {
+        $phone = preg_replace('/@.*$/', '', $phone);
+        $phone = preg_replace('/\D/', '', $phone);
+
+        return str_starts_with($phone, '0') ? '62' . substr($phone, 1) : $phone;
     }
 
     /**
@@ -754,12 +754,9 @@ class FonnteWebhookController extends Controller
                 'message' => $message,
             ]);
 
-            Log::info("Fonnte reply dispatched to {$target}:", [
-                'status'   => $response->status(),
-                'response' => $response->json(),
-            ]);
+            Log::info('Fonnte reply dispatched.', ['status' => $response->status()]);
         } catch (\Throwable $e) {
-            Log::error('Fonnte reply failed to send: ' . $e->getMessage());
+            Log::error('Fonnte reply failed to send.', ['exception' => $e::class]);
         }
     }
 }

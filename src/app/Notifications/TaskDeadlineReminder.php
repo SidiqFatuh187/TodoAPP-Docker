@@ -3,44 +3,26 @@
 namespace App\Notifications;
 
 use App\Models\Todo;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Support\Facades\Http;
 use Carbon\Carbon;
 use App\Channels\WhatsappChannel;
 
 class TaskDeadlineReminder extends Notification
 {
-    use Queueable;
-
-    /**
-     * Create a new notification instance.
-     */
     public function __construct(public Todo $todo)
     {
-        //
     }
 
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
-     */
     public function via(object $notifiable): array
     {   
-        $channels = ['database'];
-        if ($notifiable->phone){
+        $channels = $notifiable->is_banned ? [] : ['database'];
+        if (!$notifiable->is_banned && $notifiable->phone){
            $channels[] = WhatsappChannel::class;
         }
 
         return $channels;
     }
 
-    /**
-     * Get the mail representation of the notification.
-     */
     public function toArray(object $notifiable): array
     {
         return [
@@ -50,10 +32,10 @@ class TaskDeadlineReminder extends Notification
         ];
     }
 
-    public function toWhatsapp(object $notifiable): void
+    public function toWhatsapp(object $notifiable): string
     {
         $timezone = $notifiable->timezone ?? 'Asia/Jakarta';
-        $deadline = Carbon::parse($this->todo->deadline)->setTimezone($timezone);
+        $deadline = Carbon::parse($this->todo->getRawOriginal('deadline'), 'Asia/Jakarta')->setTimezone($timezone);
 
         $priority = match($this->todo->priority) {
             'high'   => '🔴 Tinggi',
@@ -67,17 +49,12 @@ class TaskDeadlineReminder extends Notification
             . "📌 *{$this->todo->title}* [ID: #{$this->todo->id}]\n"
             . ($this->todo->description ? "📝 {$this->todo->description}\n" : '')
             . "🎯 Prioritas: {$priority}\n"
-            . "📅 Deadline: *{$deadline->format('d M Y, H:i')}*\n\n"
+            . "📅 Deadline: *{$deadline->format('d M Y, H:i')} {$timezone}*\n\n"
             . "Segera selesaikan sebelum deadline ya! 💪\n"
             . "👉 Balas pesan ini: *DONE {$this->todo->id}* jika sudah selesai!\n\n"
             . "_— Wassup Task_";
 
-        Http::withHeaders([
-            'Authorization' => config('services.fonnte.token'),
-        ])->post(config('services.fonnte.url'), [
-            'target'  => $notifiable->phone,
-            'message' => $message,
-        ]);
+        return $message;
     }
 
 

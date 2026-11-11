@@ -10,4 +10,5 @@ Artisan::command('inspire', function () {
 
 Schedule::command('app:send-task-notifications --timezone=Asia/Jakarta')
     ->everyFifteenMinutes()
-    ->timezone('Asia/Jakarta');
+    ->timezone('Asia/Jakarta')
+    ->withoutOverlapping(10);

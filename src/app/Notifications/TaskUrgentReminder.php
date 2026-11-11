@@ -5,14 +5,10 @@ namespace App\Notifications;
 use App\Channels\WhatsappChannel;
 use App\Models\Todo;
 use Carbon\Carbon;
-use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
-use Illuminate\Support\Facades\Http;
 
 class TaskUrgentReminder extends Notification
 {
-    use Queueable;
-
     /**
      * @param Todo $todo
      * @param string $urgency '6_hours' or '1_hour'
@@ -25,8 +21,8 @@ class TaskUrgentReminder extends Notification
 
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
-        if ($notifiable->phone) {
+        $channels = $notifiable->is_banned ? [] : ['database'];
+        if (!$notifiable->is_banned && $notifiable->phone) {
             $channels[] = WhatsappChannel::class;
         }
 
@@ -45,10 +41,10 @@ class TaskUrgentReminder extends Notification
         ];
     }
 
-    public function toWhatsapp(object $notifiable): void
+    public function toWhatsapp(object $notifiable): string
     {
         $timezone = $notifiable->timezone ?? 'Asia/Jakarta';
-        $deadline = Carbon::parse($this->todo->deadline)->setTimezone($timezone);
+        $deadline = Carbon::parse($this->todo->getRawOriginal('deadline'), 'Asia/Jakarta')->setTimezone($timezone);
 
         $priority = match ($this->todo->priority) {
             'high'   => '🔴 Tinggi',
@@ -62,7 +58,7 @@ class TaskUrgentReminder extends Notification
                 . "📌 *{$this->todo->title}* [ID: #{$this->todo->id}]\n"
                 . ($this->todo->description ? "📝 {$this->todo->description}\n" : '')
                 . "🎯 Prioritas: {$priority}\n"
-                . "⏰ Deadline: *{$deadline->format('H:i')} WIB (Kurang dari 60 menit)*\n\n"
+                . "⏰ Deadline: *{$deadline->format('d M Y, H:i')} {$timezone} (Kurang dari 60 menit)*\n\n"
                 . "Waktu hampir habis! Segera selesaikan dan submit tugasmu sekarang juga! ⚡⚡\n"
                 . "👉 Balas *DONE {$this->todo->id}* jika sudah selesai, atau *TUNDA {$this->todo->id} 2h* untuk mengundur.\n\n"
                 . "_— Wassup Task_";
@@ -71,17 +67,12 @@ class TaskUrgentReminder extends Notification
                 . "📌 *{$this->todo->title}* [ID: #{$this->todo->id}]\n"
                 . ($this->todo->description ? "📝 {$this->todo->description}\n" : '')
                 . "🎯 Prioritas: {$priority}\n"
-                . "⏰ Deadline: *Hari ini, {$deadline->format('H:i')} WIB*\n\n"
+                . "⏰ Deadline: *{$deadline->format('d M Y, H:i')} {$timezone}*\n\n"
                 . "Waktu pengerjaan tersisa kurang dari 6 jam. Pastikan tugasmu segera difinalisasi ya! 💪\n"
                 . "👉 Balas *DONE {$this->todo->id}* jika sudah selesai, atau *TUNDA {$this->todo->id} 2h* untuk mengundur.\n\n"
                 . "_— Wassup Task_";
         }
 
-        Http::withHeaders([
-            'Authorization' => config('services.fonnte.token'),
-        ])->post(config('services.fonnte.url'), [
-            'target'  => $notifiable->phone,
-            'message' => $message,
-        ]);
+        return $message;
     }
 }
