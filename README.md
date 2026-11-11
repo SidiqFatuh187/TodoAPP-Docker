@@ -54,7 +54,7 @@ Aplikasi ini juga dilengkapi panel admin, reset password via OTP (email), dan pe
 
 ### 🗂️ Manajemen Tugas (Todo)
 - CRUD tugas lengkap: judul, deskripsi, kategori, prioritas (`low` / `medium` / `high`), status (`pending` / `active` / `completed`), dan deadline
-- Lampiran file per tugas (pdf, doc, docx, xls, xlsx, jpg, png — maks. 5 MB) dengan hash nama file unik dan auto-delete file saat task dihapus
+- Lampiran file per tugas (pdf, doc, docx, xls, xlsx, jpg, png, maks. 5 MB) disimpan privat dengan nama acak; unduhan memeriksa pemilik tugas dan file dihapus saat tugas dihapus
 - Pencarian & filter tugas berdasarkan status, kategori, atau kata kunci (termasuk quick search via AJAX)
 - Kategori kustom dengan warna & ikon per user
 - Halaman **Due Dates** yang mengelompokkan tugas ke: **Terlambat**, **Hari Ini**, **Besok**, dan **Nanti**
@@ -63,12 +63,12 @@ Aplikasi ini juga dilengkapi panel admin, reset password via OTP (email), dan pe
 - Sistem pengingat bertahap multi-level:
   - 🌅 **Rangkuman Pagi (*Morning Digest*)**: Ringkasan terpadu tugas hari ini dan besok antara jam 07:00 – 09:00 pagi (anti-spam, 1 pesan untuk semua tugas).
   - ⏳ **Pengingat Awal H-3**: Pengingat dini 3 hari sebelum deadline (mulai jam 09:00 pagi) untuk tugas besar atau laporan praktikum.
-  - ⏰ **Pengingat H-1**: Notifikasi sore hari (mulai jam 17:00 WIB) agar pengguna mulai mencicil di malam hari.
+  - ⏰ **Pengingat H-1**: Notifikasi mulai jam 17:00 waktu lokal pengguna.
   - ⚠️ **Peringatan Kritis (*Urgent*)**: Alarm darurat saat sisa waktu $< 6$ jam dan $< 1$ jam sebelum deadline.
   - 🚨 **Tugas Terlambat (*Overdue*)**: Peringatan saat batas waktu tugas telah terlewati.
 - Pesan WhatsApp berformat rapi dan informatif (nama user, judul tugas, prioritas dengan ikon warna, jam deadline).
-- Mendukung 3 zona waktu Indonesia per user: **WIB, WITA, WIT** — pengingat dihitung presisi sesuai timezone masing-masing user, bukan waktu server.
-- Anti duplikat cerdas: sistem mengecek riwayat tabel notifikasi sehingga pesan tidak berulang atau spam.
+- Mendukung WIB, WITA, dan WIT per pengguna. Input dan tampilan mengikuti zona pengguna; penyimpanan memakai `Asia/Jakarta`.
+- Pencegahan pengiriman ulang memakai tabel `reminder_deliveries` yang terpisah dari inbox. Batas duplikasi pada kegagalan koneksi penyedia dijelaskan di bagian cara kerja.
 - Notifikasi terintegrasi ganda: tersimpan di database (in-app notification center) dan dikirim ke WhatsApp pengguna.
 
 ### 💬 Interaksi WhatsApp Dua Arah (Incoming Webhook)
@@ -128,12 +128,16 @@ Setiap kali dijalankan, scheduler mengecek batas waktu tugas dan mengirimkan not
 | 🚨 **Overdue** | Deadline telah lewat (sesuai timezone user) | `TaskOverdue` | Memberitahu tugas yang telah melewati batas waktu pengumpulan |
 
 Alur pengirimannya:
-1. Command memfilter tugas yang memenuhi kondisi deadline di atas secara optimal via SQL.
-2. Untuk tiap tugas, sistem mengecek dulu apakah notifikasi jenis yang sama untuk `task_id` tersebut **sudah pernah dikirim** (dicek dari tabel `notifications`) — supaya tidak ada pesan dobel.
-3. Jika belum, Laravel Notification dipicu lewat `$user->notify(...)`, yang jalan di 2 channel:
-   - `database` → tersimpan di pusat notifikasi in-app
-   - `App\Channels\WhatsappChannel` (custom channel) → hanya aktif jika user punya nomor HP (`phone`) terisi
-4. `WhatsappChannel` memanggil method `toWhatsapp()` pada notification, yang menyusun pesan lalu mengirimnya via HTTP POST ke **Fonnte API**:
+1. Command menghitung jadwal berdasarkan zona waktu pengguna; timestamp disimpan dalam zona kanonis `Asia/Jakarta`.
+2. Tabel `reminder_deliveries` menyimpan identitas unik pengguna, tugas, jenis pengingat, urgency, dan deadline. Morning digest menggunakan tanggal lokal pengguna.
+3. Identitas pengiriman dan notifikasi inbox dibuat dalam satu transaksi. Menghapus inbox tidak menghapus riwayat pengiriman; perubahan deadline membentuk identitas baru.
+4. Pengiriman WhatsApp berlangsung sinkron dalam command, bukan queue. Claim atomik mencegah dua proses mengirim baris yang sama bersamaan; claim yang terhenti dapat dipulihkan setelah 10 menit.
+5. Kegagalan HTTP atau respons Fonnte dengan `status` bukan `true` dicatat dan dicoba ulang paling cepat 15 menit kemudian, maksimal lima percobaan. Akun banned dan pengiriman dengan deadline yang sudah berubah dibatalkan.
+6. Timeout koneksi 5 detik dan timeout permintaan 15 detik. Kegagalan satu penerima tidak menghentikan penerima lain. Status `sent` berarti diterima penyedia, bukan bukti pesan dibaca.
+
+Jika penyedia menerima pesan lalu koneksi/proses terputus sebelum status tersimpan, retry masih dapat mengirim duplikat. Tidak ada klaim exactly-once tanpa dukungan idempotency dari penyedia. Riwayat inbox lama yang dapat dicocokkan dimigrasikan sebagai `legacy_unknown`, bukan sukses; riwayat yang sudah dihapus tidak dapat direkonstruksi.
+
+`WhatsappChannel` mengirim pesan melalui HTTP POST:
 
 ```php
 Http::withHeaders([
@@ -156,7 +160,7 @@ Http::withHeaders([
 | Queue | Laravel Queue (driver `database`) |
 | Web Server | Nginx (reverse proxy ke PHP-FPM) + Nginx Proxy Manager |
 | Container | Docker & Docker Compose |
-| CI/CD | GitHub Actions → build image → push ke GitHub Container Registry (GHCR) |
+| CI/CD | GitHub Actions menguji commit, lalu deploy source commit yang sama melalui SSH |
 
 ## 🐳 Arsitektur Docker
 
@@ -168,7 +172,7 @@ Http::withHeaders([
 | `nginx` | `nginx:alpine` | `8000` → `80` | Web server, meneruskan request PHP ke container `php` |
 | `php` | Custom (`docker/php/Dockerfile`, base `php:8.4-fpm`) | `5173` (Vite dev server) | Menjalankan aplikasi Laravel, Composer, Node.js 22 & npm sudah terpasang di image |
 | `scheduler` | Custom (`docker/php/Dockerfile`) | - | Background worker yang otomatis menjalankan `php artisan schedule:work` setiap 60 detik |
-| `worker` | Custom (`docker/php/Dockerfile`) | - | Queue worker yang memproses pengiriman notifikasi Fonnte & email di background (`queue:work`) |
+| `worker` | Custom (`docker/php/Dockerfile`) | - | Memproses job yang secara eksplisit masuk queue; reminder dan OTP saat ini sinkron |
 | `tunnel` | `ngrok/ngrok:latest` | - | Public HTTPS Tunnel permanen (Ngrok static domain) untuk menerima incoming webhook WhatsApp Fonnte |
 | `mysql` | `mysql:8.0` | `3306` (localhost only) | Database utama (`todo_db`) |
 Semua service terhubung lewat network bridge `todo_network`, dengan volume persisten untuk data MySQL dan konfigurasi Nginx Proxy Manager.
@@ -198,7 +202,7 @@ TodoAPP-Docker/
 │       └── console.php         # Jadwal scheduler reminder
 └── .github/workflows/
     ├── ci.yml                  # Test otomatis (PHPUnit + build asset)
-    └── cd.yml                  # Build & push image Docker ke GHCR
+    └── cd.yml                  # Deploy source commit yang lolos CI melalui SSH
 ```
 
 ## 🚀 Instalasi & Menjalankan
@@ -238,6 +242,7 @@ MAIL_FROM_NAME="Wassup Task"
 
 FONNTE_TOKEN=your_fonnte_device_token
 FONNTE_URL=https://api.fonnte.com/send
+FONNTE_WEBHOOK_SECRET=replace_with_a_long_random_secret
 ```
 
 ```bash
@@ -256,7 +261,7 @@ docker compose exec php php artisan migrate
 # 7. (Opsional) Buat user admin default
 docker compose exec php php artisan app:create-admin
 
-# 8. Buat symlink storage (dibutuhkan untuk lampiran file & avatar)
+# 8. Buat symlink storage untuk avatar; lampiran tugas tetap privat
 docker compose exec php php artisan storage:link
 
 # 9. Install dependency & build asset frontend (Tailwind v4 + Vite)
@@ -277,8 +282,10 @@ Aplikasi bisa diakses di **http://localhost:8000**.
 | `MAIL_MAILER=resend`, `RESEND_API_KEY`, `MAIL_FROM_NAME` | Konfigurasi pengiriman email OTP reset password lewat Resend |
 | `FONNTE_TOKEN` | Token device dari dashboard Fonnte, dipakai sebagai header `Authorization` |
 | `FONNTE_URL` | Endpoint API Fonnte, default `https://api.fonnte.com/send` |
-| `QUEUE_CONNECTION=database` | Notifikasi menggunakan queue, pastikan tabel `jobs` termigrasi |
-| `APP_TIMEZONE` | Timezone default aplikasi; timezone per-user (WIB/WITA/WIT) diatur lewat halaman Settings |
+| `FONNTE_WEBHOOK_SECRET` | Wajib untuk POST webhook. Samakan secret pada konfigurasi Fonnte, utamakan header `X-Webhook-Secret`; field/query `secret` juga didukung. Hindari query secret jika URL dicatat proxy. Secret kosong menolak semua POST; GET hanya health ping. |
+| `QUEUE_CONNECTION=database` | Untuk job antrean; reminder dan OTP saat ini tidak membutuhkan queue worker |
+| Zona waktu | Penyimpanan tetap `Asia/Jakarta`; preferensi WIB/WITA/WIT hanya untuk interpretasi input, jadwal lokal, dan tampilan. `APP_TIMEZONE` tidak mengganti zona penyimpanan. |
+| `CACHE_STORE=database` | Gunakan cache bersama yang mendukung atomic lock untuk pembatasan OTP dan klaim kepemilikan nomor |
 
 ## 📅 Menjalankan Scheduler (Reminder)
 
@@ -293,7 +300,32 @@ docker compose exec php php artisan app:send-task-notifications
 ## 🧪 Testing & CI/CD
 
 - **CI** (`.github/workflows/ci.yml`): setiap push/PR ke `master` menjalankan `composer install`, build asset (`npm run build`), migrasi ke SQLite, lalu `php artisan test`.
-- **CD** (`.github/workflows/cd.yml`): setelah CI sukses di branch `master`, image Docker PHP di-build dari `docker/php/Dockerfile` dan di-push otomatis ke **GitHub Container Registry (GHCR)**.
+- **CD** (`.github/workflows/cd.yml`): hanya hasil CI sukses dari push `master` repositori yang sama yang boleh deploy. VPS checkout commit SHA yang diuji, membangun runtime Compose, menjalankan `composer install` dan `npm ci` di container, memigrasikan database/lampiran, lalu membuka maintenance. Jalur ini berbasis source dengan bind mount, bukan image aplikasi GHCR.
+- Deployment menolak working tree server yang berubah; tidak melakukan stash otomatis atau menimpa perubahan lokal. Commit yang sudah tertinggal dari `origin/master` dilewati. Siapkan backup database/storage sebelum deployment. Jika deployment gagal setelah maintenance dimulai, aplikasi tetap maintenance dan scheduler tetap berhenti sampai operator memperbaiki penyebabnya.
+
+### Pembaruan keamanan dan migrasi instalasi lama
+
+- Reset password memakai bukti verifikasi yang terikat email, record OTP, challenge, dan batas waktu; bukti dikonsumsi sekali. Mengawali reset baru membuang bukti sebelumnya.
+- Pengiriman OTP memiliki cooldown dan pembatasan percobaan verifikasi. Nomor baru disimpan dalam format `62` setelah OTP valid; nomor ekuivalen milik akun lain ditolak. Nomor lama yang ambigu tidak otomatis dihapus; webhook menolak pencocokan ambigu.
+- Kategori tugas harus dimiliki pengguna yang sama. Lampiran berada pada disk privat dan hanya dapat diunduh pemilik melalui route terautentikasi.
+
+Untuk instalasi yang sudah berisi data, hentikan scheduler dan masuk maintenance sebelum migrasi. Cadangkan database serta `src/storage/app` ke lokasi di luar repository, lalu:
+
+```bash
+docker compose exec php php artisan down
+docker compose stop scheduler worker
+docker compose exec php php artisan migrate --force
+docker compose exec php php artisan tasks:privatize-attachments --dry-run
+docker compose exec php php artisan tasks:privatize-attachments
+docker compose exec nginx nginx -t
+docker compose exec nginx nginx -s reload
+docker compose exec php php artisan up
+docker compose up -d scheduler worker
+```
+
+Command lampiran memverifikasi SHA-256 sebelum menghapus salinan publik, dapat dijalankan ulang, dan berhenti dengan status gagal jika file hilang atau salinan privat berbeda. Nginx menolak `/storage/todo-files/` agar URL publik lama tidak dapat digunakan. Jangan membuka maintenance sebelum konflik file selesai.
+
+Timestamp lama tidak dikonversi massal karena tidak menyimpan zona asal. Nilai lama dianggap mengikuti konvensi `Asia/Jakarta`; tugas yang dahulu dibuat dalam konteks WITA/WIT perlu diperiksa pemilik dan diperbaiki dari halaman edit jika waktunya keliru.
 
 ## 🗺️ Roadmap
 
@@ -305,7 +337,7 @@ Beberapa pembaruan dan ide pengembangan lanjutan:
 - [x] Modal interaktif untuk Terms, Plans, dan Contact Us pada halaman autentikasi *(Selesai)*
 - [ ] Tambahkan level reminder **H-7** (pengingat 7 hari sebelum deadline)
 - [ ] Preferensi channel notifikasi (WhatsApp / Email / keduanya) yang bisa diatur user sendiri
-- [ ] Retry & logging kegagalan pengiriman Fonnte jika nomor tidak valid
+- [x] Riwayat pengiriman terpisah, retry terbatas, dan pencatatan kegagalan Fonnte
 
 ## 🤝 Kontribusi
 
