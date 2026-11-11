@@ -22,7 +22,6 @@ return Application::configure(basePath: dirname(__DIR__))
     // Admin Middleware
     $middleware->alias([
     'admin' => \App\Http\Middleware\AdminMiddleware::class,
-    'timezone' =>\App\Http\Middleware\SetUsertimezone::class,
     ]);
 
     })

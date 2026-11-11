@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Todo;
 use Illuminate\Support\Facades\Auth;
 
@@ -11,11 +10,16 @@ class DueDateController extends Controller
         public function index()
         {
              $userId = Auth::id();
+            $timezone = Auth::user()->timezone ?? 'Asia/Jakarta';
+            $localToday = now($timezone)->startOfDay();
+            $todayStart = $localToday->copy()->setTimezone('Asia/Jakarta');
+            $tomorrowStart = $localToday->copy()->addDay()->setTimezone('Asia/Jakarta');
+            $laterStart = $localToday->copy()->addDays(2)->setTimezone('Asia/Jakarta');
 
             $overdue = Todo::where('user_id', $userId)
                 ->where('status', '!=', 'completed')
                 ->whereNotNull('deadline')
-                ->where('deadline', '<', now()->startOfDay())
+                ->where('deadline', '<', $todayStart)
                 ->with('category')
                 ->latest('deadline')
                 ->get();
@@ -23,7 +27,8 @@ class DueDateController extends Controller
             $today = Todo::where('user_id', $userId)
                 ->where('status', '!=', 'completed')
                 ->whereNotNull('deadline')
-                ->whereDate('deadline', today())
+                ->where('deadline', '>=', $todayStart)
+                ->where('deadline', '<', $tomorrowStart)
                 ->with('category')
                 ->latest('deadline')
                 ->get();
@@ -31,7 +36,8 @@ class DueDateController extends Controller
             $tomorrow = Todo::where('user_id', $userId)
                 ->where('status', '!=', 'completed')
                 ->whereNotNull('deadline')
-                ->whereDate('deadline', today()->addDay())
+                ->where('deadline', '>=', $tomorrowStart)
+                ->where('deadline', '<', $laterStart)
                 ->with('category')
                 ->latest('deadline')
                 ->get();
@@ -39,7 +45,7 @@ class DueDateController extends Controller
             $later = Todo::where('user_id', $userId)
                 ->where('status', '!=', 'completed')
                 ->whereNotNull('deadline')
-                ->where('deadline', '>', today()->addDays(1)->endOfDay())
+                ->where('deadline', '>=', $laterStart)
                 ->with('category')
                 ->latest('deadline')
                 ->get();

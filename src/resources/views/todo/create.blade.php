@@ -63,7 +63,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                         </svg>
                         <span class="text-xs text-gray-600 truncate flex-1">{{ $todo->file_name }}</span>
-                        <a href="{{ Storage::url($todo->file_path) }}" target="_blank"
+                        <a href="{{ route('todo.download', $todo->id) }}" target="_blank"
                             class="text-xs text-blue-600 hover:text-blue-700 shrink-0">Lihat</a>
                     </div>
                     <p class="mt-1 text-xs text-gray-400">Upload file baru untuk mengganti yang lama</p>
@@ -111,7 +111,7 @@
                 </label>
                 <input type="datetime-local" id="deadline" name="deadline"
                     value="{{ old('deadline') }}"
-                    min="{{ now()->format('Y-m-d\TH:i') }}"
+                    min="{{ now(auth()->user()->timezone ?? 'Asia/Jakarta')->format('Y-m-d\TH:i') }}"
                     class="w-full px-4 py-2.5 rounded-xl border @error('deadline') border-red-400 bg-red-50 @else border-gray-200 @enderror text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                 @error('deadline')
                     <p class="mt-1.5 text-xs text-red-500">{{ $message }}</p>

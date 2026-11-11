@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Channels\WhatsappChannel;
+use App\Models\ReminderDelivery;
 use App\Models\Todo;
 use App\Models\User;
 use App\Notifications\MorningDigestNotification;
@@ -13,250 +15,170 @@ use Carbon\Carbon;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Throwable;
 
 #[Signature('app:send-task-notifications {--timezone=Asia/Jakarta : Default timezone}')]
-#[Description('Send task morning digest, early warning, deadline reminders, urgent warnings, and overdue notifications')]
+#[Description('Create task reminders and synchronously retry pending WhatsApp deliveries')]
 class SendTaskNotifications extends Command
 {
-    public function handle()
+    public function handle(): int
     {
         $defaultTz = $this->option('timezone') ?: 'Asia/Jakarta';
+        $now = Carbon::now('Asia/Jakarta');
 
-        $this->processMorningDigest($defaultTz);
-        $this->processEarlyWarningH3($defaultTz);
-        $this->processWarningH1($defaultTz);
-        $this->processUrgentReminders($defaultTz);
-        $this->processOverdueReminders($defaultTz);
+        User::where('is_banned', false)->chunkById(50, function ($users) use ($defaultTz, $now) {
+            foreach ($users as $user) {
+                $timezone = $user->timezone ?: $defaultTz;
+                $localNow = $now->copy()->setTimezone($timezone);
+                $today = $localNow->toDateString();
+                $tomorrow = $localNow->copy()->addDay()->toDateString();
+                $h3 = $localNow->copy()->addDays(3)->toDateString();
+                $pending = $user->todos()->where('status', '!=', 'completed')->whereNotNull('deadline');
 
-        $this->info('Task notifications processed successfully.');
-    }
+                if ($localNow->format('H:i') >= '07:00' && $localNow->format('H:i') <= '09:00') {
+                    $tasks = (clone $pending)->whereBetween('deadline', [
+                        $localNow->copy()->startOfDay()->setTimezone('Asia/Jakarta')->toDateTimeString(),
+                        $localNow->copy()->addDay()->endOfDay()->setTimezone('Asia/Jakarta')->toDateTimeString(),
+                    ])->orderBy('deadline')->get();
+                    $todayTasks = $tasks->filter(fn ($todo) => Carbon::parse(ReminderDelivery::deadlineRevision($todo), 'Asia/Jakarta')->setTimezone($timezone)->toDateString() === $today);
+                    $tomorrowTasks = $tasks->filter(fn ($todo) => Carbon::parse(ReminderDelivery::deadlineRevision($todo), 'Asia/Jakarta')->setTimezone($timezone)->toDateString() === $tomorrow);
+                    $completed = $user->todos()->where('status', 'completed')->where('completed_at', '>=', $now->copy()->subDay()->toDateTimeString())->orderByDesc('completed_at')->limit(5)->get();
 
-    /**
-     * 1. Morning Digest (Rangkuman Pagi jam 07:00 - 09:00)
-     * Menggabungkan seluruh tugas hari ini dan besok dalam 1 pesan WA agar anti-spam.
-     */
-    protected function processMorningDigest(string $defaultTz): void
-    {
-        User::whereNotNull('phone')
-            ->where('is_banned', false)
-            ->chunk(50, function ($users) use ($defaultTz) {
-                foreach ($users as $user) {
-                    $timezone = $user->timezone ?? $defaultTz;
-                    $userNow  = Carbon::now($timezone);
-                    $hour     = (int) $userNow->format('H');
-
-                    // Jendela Morning Digest: Jam 07:00 sampai 09:00 pagi waktu user
-                    $timeStr = $userNow->format('H:i');
-                    if ($timeStr < '07:00' || $timeStr > '09:00') {
-                        continue;
-                    }
-
-                    $todayStr    = $userNow->toDateString();
-                    $tomorrowStr = $userNow->copy()->addDay()->toDateString();
-
-                    // Cek apakah user sudah menerima Morning Digest hari ini
-                    $alreadySentToday = $user->notifications()
-                        ->where('type', MorningDigestNotification::class)
-                        ->whereJsonContains('data->date', $todayStr)
-                        ->exists();
-
-                    if ($alreadySentToday) {
-                        continue;
-                    }
-
-                    // Ambil tugas yang belum selesai untuk hari ini & besok
-                    $allPending = Todo::where('user_id', $user->id)
-                        ->where('status', '!=', 'completed')
-                        ->whereNotNull('deadline')
-                        ->whereBetween('deadline', [
-                            $userNow->copy()->subHours(12),
-                            $userNow->copy()->addDays(2)->endOfDay(),
-                        ])
-                        ->orderBy('deadline', 'asc')
-                        ->get();
-
-                    $todayTasks = $allPending->filter(function ($todo) use ($timezone, $todayStr) {
-                        return Carbon::parse($todo->deadline)->setTimezone($timezone)->toDateString() === $todayStr;
-                    });
-
-                    $tomorrowTasks = $allPending->filter(function ($todo) use ($timezone, $tomorrowStr) {
-                        return Carbon::parse($todo->deadline)->setTimezone($timezone)->toDateString() === $tomorrowStr;
-                    });
-                    // Ambil tugas yang selesai dalam 24 jam terakhir
-                    $recentCompleted = Todo::where('user_id', $user->id)
-                        ->where('status', 'completed')
-                        ->whereNotNull('completed_at')
-                        ->where('completed_at', '>=', $userNow->copy()->subHours(24))
-                        ->orderBy('completed_at', 'desc')
-                        ->take(5)
-                        ->get();
-
-                    // Kirim jika ada tugas hari ini, besok, atau tugas yang baru selesai
-                    if ($todayTasks->count() > 0 || $tomorrowTasks->count() > 0 || $recentCompleted->count() > 0) {
-                        $user->notify(new MorningDigestNotification($todayTasks, $tomorrowTasks, $recentCompleted));
-                        $this->info("Morning digest sent: [{$user->name}] ({$todayTasks->count()} today, {$tomorrowTasks->count()} tomorrow, {$recentCompleted->count()} completed)");
+                    if ($tasks->isNotEmpty() || $completed->isNotEmpty()) {
+                        $this->remember($user, new MorningDigestNotification($todayTasks, $tomorrowTasks, $completed), $today);
                     }
                 }
-            });
-    }
 
-    /**
-     * 2. Pengingat H-3 (Early Warning)
-     * Mengingatkan tugas besar / laporan 3 hari sebelum deadline.
-     */
-    protected function processEarlyWarningH3(string $defaultTz): void
-    {
-        Todo::with('user')
-            ->where('status', '!=', 'completed')
-            ->whereNotNull('deadline')
-            ->whereBetween('deadline', [now()->addDays(2)->startOfDay(), now()->addDays(4)->endOfDay()])
-            ->chunk(100, function ($todos) use ($defaultTz) {
-                foreach ($todos as $todo) {
-                    $timezone       = $todo->user->timezone ?? $defaultTz;
-                    $userNow        = Carbon::now($timezone);
-                    $h3Date         = $userNow->copy()->addDays(3)->toDateString();
-                    $deadlineUserTz = Carbon::parse($todo->deadline)->setTimezone($timezone);
+                (clone $pending)->where('deadline', '<=', $localNow->copy()->addDays(3)->endOfDay()->setTimezone('Asia/Jakarta')->toDateTimeString())
+                    ->chunkById(100, function ($todos) use ($user, $localNow, $timezone, $tomorrow, $h3, $now) {
+                        foreach ($todos as $todo) {
+                            $revision = ReminderDelivery::deadlineRevision($todo);
+                            $deadline = Carbon::parse($revision, 'Asia/Jakarta')->setTimezone($timezone);
+                            $minutesLeft = $now->diffInMinutes($deadline, false);
 
-                    if ($deadlineUserTz->toDateString() !== $h3Date) {
-                        continue;
-                    }
-
-                    // H-3 dikirim mulai jam 09:00 pagi waktu user agar tidak terkirim tengah malam & tidak tabrakan dengan Morning Digest
-                    if ($userNow->hour < 9) {
-                        continue;
-                    }
-
-                    $alreadyNotified = $todo->user->notifications()
-                        ->where('type', TaskH3Reminder::class)
-                        ->whereJsonContains('data->task_id', $todo->id)
-                        ->exists();
-
-                    if (!$alreadyNotified) {
-                        $todo->user->notify(new TaskH3Reminder($todo));
-                        $this->info("H-3 early warning sent: [{$todo->user->name}] {$todo->title}");
-                    }
-                }
-            });
-    }
-
-    /**
-     * 3. Pengingat H-1 (Warning)
-     * Mengingatkan tugas yang jatuh tempo besok agar mulai dicicil.
-     */
-    protected function processWarningH1(string $defaultTz): void
-    {
-        Todo::with('user')
-            ->where('status', '!=', 'completed')
-            ->whereNotNull('deadline')
-            ->whereBetween('deadline', [now()->startOfDay(), now()->addDays(2)->endOfDay()])
-            ->chunk(100, function ($todos) use ($defaultTz) {
-                foreach ($todos as $todo) {
-                    $timezone       = $todo->user->timezone ?? $defaultTz;
-                    $userNow        = Carbon::now($timezone);
-                    $tomorrow       = $userNow->copy()->addDay()->toDateString();
-                    $deadlineUserTz = Carbon::parse($todo->deadline)->setTimezone($timezone);
-
-                    if ($deadlineUserTz->toDateString() !== $tomorrow) {
-                        continue;
-                    }
-
-                    // H-1 dikirim mulai jam 17:00 (sore/malam) waktu user agar pengguna mulai mencicil malam itu
-                    // dan tidak berulang dengan Morning Digest di pagi hari
-                    if ($userNow->hour < 17) {
-                        continue;
-                    }
-
-                    $alreadyNotified = $todo->user->notifications()
-                        ->where('type', TaskDeadlineReminder::class)
-                        ->whereJsonContains('data->task_id', $todo->id)
-                        ->exists();
-
-                    if (!$alreadyNotified) {
-                        $todo->user->notify(new TaskDeadlineReminder($todo));
-                        $this->info("H-1 warning sent: [{$todo->user->name}] {$todo->title}");
-                    }
-                }
-            });
-    }
-
-    /**
-     * 4. Pengingat Kritis (Urgent) — 6 Jam & 1 Jam Sebelum Deadline
-     * Peringatan krusial bagi yang suka SKS atau lupa submit.
-     */
-    protected function processUrgentReminders(string $defaultTz): void
-    {
-        Todo::with('user')
-            ->where('status', '!=', 'completed')
-            ->whereNotNull('deadline')
-            ->whereBetween('deadline', [now(), now()->addHours(7)])
-            ->chunk(100, function ($todos) use ($defaultTz) {
-                foreach ($todos as $todo) {
-                    $timezone       = $todo->user->timezone ?? $defaultTz;
-                    $userNow        = Carbon::now($timezone);
-                    $deadlineUserTz = Carbon::parse($todo->deadline)->setTimezone($timezone);
-
-                    $minutesLeft = $userNow->diffInMinutes($deadlineUserTz, false);
-
-                    // Tahap A: 1 Jam Sebelum Deadline (0 < sisa menit <= 60)
-                    if ($minutesLeft > 0 && $minutesLeft <= 60) {
-                        $alreadyNotified = $todo->user->notifications()
-                            ->where('type', TaskUrgentReminder::class)
-                            ->whereJsonContains('data->task_id', $todo->id)
-                            ->whereJsonContains('data->urgency', '1_hour')
-                            ->exists();
-
-                        if (!$alreadyNotified) {
-                            $todo->user->notify(new TaskUrgentReminder($todo, '1_hour'));
-                            $this->info("Urgent (1 Jam) sent: [{$todo->user->name}] {$todo->title}");
+                            if ($deadline->toDateString() === $h3 && $localNow->hour >= 9) {
+                                $this->remember($user, new TaskH3Reminder($todo), $revision, $todo);
+                            }
+                            if ($deadline->toDateString() === $tomorrow && $localNow->hour >= 17) {
+                                $this->remember($user, new TaskDeadlineReminder($todo), $revision, $todo);
+                            }
+                            if ($minutesLeft > 0 && $minutesLeft <= 360) {
+                                $urgency = $minutesLeft <= 60 ? '1_hour' : '6_hours';
+                                $this->remember($user, new TaskUrgentReminder($todo, $urgency), $revision, $todo, $urgency);
+                            } elseif ($minutesLeft < 0) {
+                                $this->remember($user, new TaskOverdue($todo), $revision, $todo);
+                            }
                         }
-                    }
-                    // Tahap B: 6 Jam Sebelum Deadline (60 < sisa menit <= 360)
-                    elseif ($minutesLeft > 60 && $minutesLeft <= 360) {
-                        $alreadyNotified = $todo->user->notifications()
-                            ->where('type', TaskUrgentReminder::class)
-                            ->whereJsonContains('data->task_id', $todo->id)
-                            ->whereJsonContains('data->urgency', '6_hours')
-                            ->exists();
+                    });
+            }
+        });
 
-                        if (!$alreadyNotified) {
-                            $todo->user->notify(new TaskUrgentReminder($todo, '6_hours'));
-                            $this->info("Urgent (6 Jam) sent: [{$todo->user->name}] {$todo->title}");
-                        }
-                    }
-                }
-            });
+        $failures = $this->deliverPending();
+        $this->info('Reminder inbox entries processed; WhatsApp delivery status is recorded separately.');
+
+        return $failures ? self::FAILURE : self::SUCCESS;
     }
 
-    /**
-     * 5. Pengingat Tugas Terlambat (Overdue)
-     */
-    protected function processOverdueReminders(string $defaultTz): void
+    private function remember(User $user, Notification $notification, string $revision, ?Todo $todo = null, string $urgency = ''): void
     {
-        Todo::with('user')
-            ->where('status', '!=', 'completed')
-            ->whereNotNull('deadline')
-            ->where('deadline', '<', now())
-            ->chunk(100, function ($todos) use ($defaultTz) {
-                foreach ($todos as $todo) {
-                    $timezone       = $todo->user->timezone ?? $defaultTz;
-                    $userNow        = Carbon::now($timezone);
-                    $deadlineUserTz = Carbon::parse($todo->deadline)->setTimezone($timezone);
+        $identity = ReminderDelivery::identity($user->id, $notification::class, $todo?->id, $revision, $urgency);
+        $id = (string) Str::uuid();
+        $now = Carbon::now('Asia/Jakarta')->toDateTimeString();
+        $data = $notification->toArray($user);
+        if ($todo) {
+            $data['deadline_revision'] = $revision;
+        }
 
-                    // Lewat deadline di timezone user
-                    if ($deadlineUserTz >= $userNow) {
+        DB::transaction(function () use ($user, $notification, $revision, $todo, $urgency, $identity, $id, $now, $data) {
+            $inserted = DB::table('reminder_deliveries')->insertOrIgnore([
+                'id' => $id,
+                'identity' => $identity,
+                'user_id' => $user->id,
+                'task_id' => $todo?->id,
+                'type' => $notification::class,
+                'revision' => $revision,
+                'urgency' => $urgency,
+                'message' => $notification->toWhatsapp($user),
+                'status' => $user->phone ? 'pending' : 'not_required',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            if ($inserted) {
+                DB::table('notifications')->insert([
+                    'id' => $id,
+                    'type' => $notification::class,
+                    'notifiable_type' => $user->getMorphClass(),
+                    'notifiable_id' => $user->id,
+                    'data' => json_encode($data, JSON_THROW_ON_ERROR),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+        });
+    }
+
+    private function deliverPending(): int
+    {
+        $failures = 0;
+        $now = Carbon::now('Asia/Jakarta');
+        DB::table('reminder_deliveries')->where('status', 'processing')->where('attempts', '>=', 5)
+            ->where('claimed_at', '<=', $now->copy()->subMinutes(10)->toDateTimeString())
+            ->update(['status' => 'exhausted', 'claim_token' => null, 'updated_at' => $now->toDateTimeString()]);
+
+        $this->claimable($now)->orderBy('id')->chunkById(100, function ($deliveries) use (&$failures) {
+            foreach ($deliveries as $delivery) {
+                $now = Carbon::now('Asia/Jakarta');
+                $token = (string) Str::uuid();
+                $claimed = $this->claimable($now)->where('id', $delivery->id)->update([
+                    'status' => 'processing',
+                    'claim_token' => $token,
+                    'claimed_at' => $now->toDateTimeString(),
+                    'attempts' => DB::raw('attempts + 1'),
+                    'updated_at' => $now->toDateTimeString(),
+                ]);
+                if (!$claimed) {
+                    continue;
+                }
+
+                $owned = DB::table('reminder_deliveries')->where('id', $delivery->id)->where('claim_token', $token);
+                try {
+                    $user = User::find($delivery->user_id);
+                    $todo = $delivery->task_id ? Todo::find($delivery->task_id) : null;
+                    $obsolete = $delivery->task_id
+                        ? (!$todo || $todo->user_id != $delivery->user_id || $todo->status === 'completed' || !$todo->getRawOriginal('deadline') || ReminderDelivery::deadlineRevision($todo) !== $delivery->revision)
+                        : ($delivery->revision !== $now->copy()->setTimezone($user?->timezone ?: 'Asia/Jakarta')->toDateString());
+                    if (!$user || $user->is_banned || !$user->phone || $obsolete || ($delivery->type === TaskUrgentReminder::class && Carbon::parse($delivery->revision, 'Asia/Jakarta')->lte($now))) {
+                        $owned->update(['status' => 'cancelled', 'claim_token' => null, 'updated_at' => $now->toDateTimeString()]);
                         continue;
                     }
 
-                    $alreadyNotified = $todo->user->notifications()
-                        ->where('type', TaskOverdue::class)
-                        ->whereJsonContains('data->task_id', $todo->id)
-                        ->exists();
-
-                    if (!$alreadyNotified) {
-                        $todo->user->notify(new TaskOverdue($todo));
-                        $this->info("Overdue notif sent: [{$todo->user->name}] {$todo->title}");
-                    }
+                    app(WhatsappChannel::class)->sendMessage($user->phone, $delivery->message);
+                    $owned->update(['status' => 'sent', 'sent_at' => Carbon::now('Asia/Jakarta')->toDateTimeString(), 'last_error' => null, 'claim_token' => null, 'updated_at' => Carbon::now('Asia/Jakarta')->toDateTimeString()]);
+                } catch (Throwable $exception) {
+                    $failures++;
+                    $owned->update([
+                        'status' => $delivery->attempts + 1 >= 5 ? 'exhausted' : 'failed',
+                        'last_error' => $exception::class,
+                        'next_attempt_at' => Carbon::now('Asia/Jakarta')->addMinutes(15)->toDateTimeString(),
+                        'claim_token' => null,
+                        'updated_at' => Carbon::now('Asia/Jakarta')->toDateTimeString(),
+                    ]);
+                    $this->warn("WhatsApp delivery {$delivery->id} failed; recorded for retry.");
                 }
-            });
+            }
+        }, 'id');
+
+        return $failures;
+    }
+
+    private function claimable(Carbon $now): \Illuminate\Database\Query\Builder
+    {
+        return DB::table('reminder_deliveries')->where('attempts', '<', 5)
+            ->where(fn ($query) => $query->whereNull('next_attempt_at')->orWhere('next_attempt_at', '<=', $now->toDateTimeString()))
+            ->where(fn ($query) => $query->whereIn('status', ['pending', 'failed'])
+                ->orWhere(fn ($stale) => $stale->where('status', 'processing')->where('claimed_at', '<=', $now->copy()->subMinutes(10)->toDateTimeString())));
     }
 }

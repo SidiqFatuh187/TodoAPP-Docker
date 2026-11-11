@@ -19,7 +19,11 @@ class FonnteWebhookTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Http::fake();
+        Config::set('services.fonnte.webhook_secret', 'test-webhook-secret');
+        Config::set('services.fonnte.token', 'test-token');
+        Config::set('services.fonnte.url', 'https://api.fonnte.com/send');
+        $this->withHeader('X-Webhook-Secret', 'test-webhook-secret');
+        Http::fake(['*' => Http::response(['status' => true])]);
     }
     public function test_get_method_is_supported_for_fonnte_verification(): void
     {
@@ -128,16 +132,16 @@ class FonnteWebhookTest extends TestCase
             'status'      => 'pending',
         ]);
 
-        $response = $this->postJson('/webhook/fonnte', [
-            'sender'  => '6281234567801',
-            'message' => "DONE {$todoB->id}",
-        ]);
+        foreach (["DONE {$todoB->id}", "TUNDA {$todoB->id} 2h", "HAPUS {$todoB->id}"] as $command) {
+            $response = $this->postJson('/webhook/fonnte', [
+                'sender'  => '6281234567801',
+                'message' => $command,
+            ]);
 
-        $response->assertStatus(200);
-        $this->assertStringContainsString('tidak ditemukan atau bukan milik kamu', $response->json('reply'));
-
-        $todoB->refresh();
-        $this->assertEquals('pending', $todoB->status);
+            $response->assertStatus(200);
+            $this->assertStringContainsString('tidak ditemukan atau bukan milik kamu', $response->json('reply'));
+            $this->assertSame('pending', $todoB->fresh()->status);
+        }
     }
 
     public function test_snooze_command_extends_deadline(): void
@@ -288,7 +292,7 @@ class FonnteWebhookTest extends TestCase
         Config::set('services.fonnte.webhook_secret', 'secret123');
 
         // Request without secret should be 401
-        $responseUnauthorized = $this->postJson('/webhook/fonnte', [
+        $responseUnauthorized = $this->withoutHeader('X-Webhook-Secret')->postJson('/webhook/fonnte', [
             'sender'  => '6281234567890',
             'message' => 'HELP',
         ]);
@@ -314,6 +318,7 @@ class FonnteWebhookTest extends TestCase
             'completed_at' => now(),
         ]);
         $completedTask->id = 101;
+        $completedTask->syncOriginal();
 
         $todayTask = new Todo([
             'title'    => 'Tugas Praktikum',
@@ -322,6 +327,7 @@ class FonnteWebhookTest extends TestCase
             'deadline' => now()->setTime(15, 30),
         ]);
         $todayTask->id = 102;
+        $todayTask->syncOriginal();
 
         $notif = new \App\Notifications\MorningDigestNotification(
             collect([$todayTask]),
@@ -329,12 +335,11 @@ class FonnteWebhookTest extends TestCase
             collect([$completedTask])
         );
 
-        $notif->toWhatsapp($user);
+        (new \App\Channels\WhatsappChannel())->send($user, $notif);
 
         \Illuminate\Support\Facades\Http::assertSent(function ($request) {
             $msg = $request['message'];
-            return str_contains($msg, 'Tugas yang Berhasil Kamu Selesaikan')
-                && str_contains($msg, 'Sarapan Pagi')
+            return str_contains($msg, 'Sarapan Pagi')
                 && str_contains($msg, 'Tugas Praktikum')
                 && str_contains($msg, 'Tinggi')
                 && str_contains($msg, '15:30');
@@ -451,5 +456,161 @@ class FonnteWebhookTest extends TestCase
         $todo = Todo::where('user_id', $user->id)->first();
         $this->assertEquals($category->id, $todo->category_id);
         $this->assertEquals('high', $todo->priority);
+    }
+
+    public function test_webhook_fails_closed_without_a_configured_secret(): void
+    {
+        User::factory()->create(['phone' => '081234567890']);
+
+        foreach ([null, ''] as $secret) {
+            Config::set('services.fonnte.webhook_secret', $secret);
+            $this->postJson('/webhook/fonnte', [
+                'sender' => '6281234567890',
+                'message' => 'TODO Unauthorized task',
+            ])->assertUnauthorized();
+        }
+
+        $this->assertDatabaseCount('todos', 0);
+        $this->assertDatabaseCount('activity_logs', 0);
+        Http::assertNothingSent();
+        $this->getJson('/webhook/fonnte')->assertOk()->assertJson(['status' => 'active']);
+    }
+
+    public function test_invalid_or_missing_secret_cannot_create_tasks(): void
+    {
+        User::factory()->create(['phone' => '081234567890']);
+        $payload = ['sender' => '6281234567890', 'message' => 'TODO Unauthorized task'];
+
+        $this->withoutHeader('X-Webhook-Secret')->postJson('/webhook/fonnte', $payload)->assertUnauthorized();
+        $this->withHeader('X-Webhook-Secret', 'wrong')->postJson('/webhook/fonnte', $payload)->assertUnauthorized();
+        $this->withoutHeader('X-Webhook-Secret')
+            ->postJson('/webhook/fonnte', $payload + ['secret' => ['test-webhook-secret']])
+            ->assertUnauthorized();
+
+        $this->assertDatabaseCount('todos', 0);
+        Http::assertNothingSent();
+    }
+
+    public function test_formatted_phone_and_sender_suffix_match_the_account(): void
+    {
+        $user = User::factory()->create(['phone' => '+62 (812) 3456-7890']);
+
+        $this->postJson('/webhook/fonnte', [
+            'sender' => '081234567890@c.us',
+            'message' => 'TODO Own task',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('todos', ['user_id' => $user->id, 'title' => 'Own task']);
+    }
+
+    public function test_ambiguous_equivalent_phone_numbers_cannot_mutate_tasks(): void
+    {
+        User::factory()->create(['phone' => '081234567890']);
+        User::factory()->create(['phone' => '+62 (812) 3456-7890']);
+
+        $this->postJson('/webhook/fonnte', [
+            'sender' => '6281234567890',
+            'message' => 'TODO Must not select newest account',
+        ])->assertOk();
+
+        $this->assertDatabaseCount('todos', 0);
+        $this->assertDatabaseCount('activity_logs', 0);
+    }
+
+    public function test_local_create_deadlines_are_stored_canonically_and_localized_in_replies(): void
+    {
+        $user = User::factory()->create(['phone' => '081234567890', 'timezone' => 'Asia/Makassar']);
+
+        $this->travelTo(Carbon::parse('2026-11-11 12:00:00', 'Asia/Jakarta'), function () use ($user) {
+            foreach ([
+                'TODO Besok pagi sarapan kategori Pribadi tinggi',
+                'TODO Sarapan | besok pagi | Pribadi | tinggi',
+            ] as $command) {
+                $response = $this->postJson('/webhook/fonnte', [
+                    'sender' => '6281234567890',
+                    'message' => $command,
+                ])->assertOk();
+
+                $todo = Todo::where('user_id', $user->id)->latest('id')->firstOrFail();
+                $this->assertSame('Sarapan', $todo->title);
+                $this->assertSame('high', $todo->priority);
+                $this->assertSame('Pribadi', $todo->category->name);
+                $this->assertSame('2026-11-12 07:00:00', $todo->getRawOriginal('deadline'));
+                $this->assertStringContainsString('08:00', $response->json('reply'));
+                $this->assertStringContainsString('Asia/Makassar', $response->json('reply'));
+            }
+
+            foreach (['TUGAS', 'CARI Sarapan'] as $command) {
+                $response = $this->postJson('/webhook/fonnte', [
+                    'sender' => '6281234567890',
+                    'message' => $command,
+                ])->assertOk();
+                $this->assertStringContainsString('08:00', $response->json('reply'));
+            }
+        });
+    }
+
+    public function test_snooze_uses_canonical_existing_deadline_and_local_now_for_expired_tasks(): void
+    {
+        $user = User::factory()->create(['phone' => '081234567890', 'timezone' => 'Asia/Makassar']);
+        $category = Category::create(['user_id' => $user->id, 'name' => 'Umum', 'color' => '#6366f1', 'icon' => 'tasks']);
+
+        $this->travelTo(Carbon::parse('2026-11-11 12:00:00', 'Asia/Jakarta'), function () use ($user, $category) {
+            foreach ([
+                ['2026-11-11 14:00:00', '2026-11-11 16:00:00', '17:00'],
+                ['2026-11-11 10:00:00', '2026-11-11 14:00:00', '15:00'],
+                [null, '2026-11-11 14:00:00', '15:00'],
+            ] as [$deadline, $expectedStored, $expectedLocal]) {
+                $todo = Todo::create([
+                    'user_id' => $user->id,
+                    'category_id' => $category->id,
+                    'title' => 'Snooze task',
+                    'status' => 'pending',
+                    'deadline' => $deadline,
+                ]);
+
+                $response = $this->postJson('/webhook/fonnte', [
+                    'sender' => '6281234567890',
+                    'message' => "TUNDA {$todo->id} 2h",
+                ])->assertOk();
+
+                $this->assertSame($expectedStored, $todo->fresh()->getRawOriginal('deadline'));
+                $this->assertStringContainsString($expectedLocal, $response->json('reply'));
+                $this->assertStringContainsString('Asia/Makassar', $response->json('reply'));
+            }
+        });
+    }
+
+    public function test_body_and_query_secrets_keep_the_existing_authentication_contract(): void
+    {
+        $user = User::factory()->create(['phone' => '081234567890']);
+        $this->withoutHeader('X-Webhook-Secret');
+
+        $this->postJson('/webhook/fonnte', [
+            'sender' => '6281234567890',
+            'message' => 'TODO Body secret task',
+            'secret' => 'test-webhook-secret',
+        ])->assertOk();
+
+        $this->postJson('/webhook/fonnte?secret=test-webhook-secret', [
+            'sender' => '6281234567890',
+            'message' => 'TODO Query secret task',
+        ])->assertOk();
+
+        $this->assertSame(2, Todo::where('user_id', $user->id)->count());
+    }
+
+    public function test_request_secrets_and_message_content_are_not_logged(): void
+    {
+        User::factory()->create(['phone' => '081234567890']);
+        \Illuminate\Support\Facades\Log::shouldReceive('info')
+            ->once()
+            ->with('Fonnte reply dispatched.', ['status' => 200]);
+
+        $this->postJson('/webhook/fonnte', [
+            'sender' => '6281234567890',
+            'message' => 'TODO Private message content',
+            'secret' => 'test-webhook-secret',
+        ])->assertOk();
     }
 }

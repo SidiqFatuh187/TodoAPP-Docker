@@ -111,7 +111,7 @@
                 <div>
                     <p class="text-xs text-gray-400">Deadline</p>
                     <p class="text-sm font-medium {{ $isOverdue ? 'text-red-500' : 'text-gray-700' }}">
-                        {{ $todo->deadline->format('d M Y, H:i') }}
+                        {{ $todo->deadline->copy()->setTimezone(auth()->user()->timezone ?? 'Asia/Jakarta')->format('d M Y, H:i') }}
                         @if($isOverdue)
                             <span class="text-xs font-normal">(Telat)</span>
                         @endif
@@ -128,7 +128,7 @@
                 </svg>
                 <div>
                     <p class="text-xs text-gray-400">Diselesaikan</p>
-                    <p class="text-sm font-medium text-gray-700">{{ $todo->completed_at->format('d M Y, H:i') }}</p>
+                    <p class="text-sm font-medium text-gray-700">{{ $todo->completed_at->copy()->setTimezone(auth()->user()->timezone ?? 'Asia/Jakarta')->format('d M Y, H:i') }}</p>
                 </div>
             </div>
         @endif
@@ -145,7 +145,7 @@
         @if($todo->file_path)
             <div class="border-t border-gray-100 pt-4">
                 <p class="text-xs text-gray-400 mb-2">Lampiran</p>
-                <a href="{{ Storage::url($todo->file_path) }}" target="_blank"
+                <a href="{{ route('todo.download', $todo->id) }}" target="_blank"
                     class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm text-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">
                     <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />

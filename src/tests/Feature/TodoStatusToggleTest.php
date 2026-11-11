@@ -71,4 +71,17 @@ class TodoStatusToggleTest extends TestCase
         $response->assertJson(['success' => true, 'status' => 'active']);
         $this->assertEquals('active', $todo->fresh()->status);
     }
+
+    public function test_invalid_status_does_not_change_task(): void
+    {
+        $user = User::factory()->create();
+        $todo = Todo::create(['user_id' => $user->id, 'title' => 'Keep pending', 'status' => 'pending']);
+
+        $this->actingAs($user)->patchJson("/todo/status/{$todo->id}", [
+            'status' => 'not-a-status',
+        ])->assertUnprocessable()->assertJsonValidationErrors('status');
+
+        $this->assertSame('pending', $todo->fresh()->status);
+        $this->assertNull($todo->fresh()->completed_at);
+    }
 }

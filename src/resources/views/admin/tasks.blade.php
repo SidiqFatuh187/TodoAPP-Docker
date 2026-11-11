@@ -166,7 +166,7 @@
                 <td class="px-5 py-3.5">
                     @if($task->deadline)
                         <span class="text-xs [font-family:'JetBrains_Mono',monospace] {{ $task->deadline->isPast() && $task->status !== 'completed' ? 'text-red-400' : 'text-gray-400' }}">
-                            {{ $task->deadline->format('d M Y') }}
+                            {{ $task->deadline->copy()->setTimezone(auth()->user()->timezone ?? 'Asia/Jakarta')->format('d M Y') }}
                         </span>
                     @else
                         <span class="text-xs text-gray-300">—</span>

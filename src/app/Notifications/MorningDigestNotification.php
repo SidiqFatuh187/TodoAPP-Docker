@@ -4,15 +4,11 @@ namespace App\Notifications;
 
 use App\Channels\WhatsappChannel;
 use Carbon\Carbon;
-use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 
 class MorningDigestNotification extends Notification
 {
-    use Queueable;
-
     public function __construct(
         public Collection $todayTasks,
         public Collection $tomorrowTasks,
@@ -23,8 +19,8 @@ class MorningDigestNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
-        if ($notifiable->phone) {
+        $channels = $notifiable->is_banned ? [] : ['database'];
+        if (!$notifiable->is_banned && $notifiable->phone) {
             $channels[] = WhatsappChannel::class;
         }
 
@@ -47,7 +43,7 @@ class MorningDigestNotification extends Notification
         ];
     }
 
-    public function toWhatsapp(object $notifiable): void
+    public function toWhatsapp(object $notifiable): string
     {
         $timezone = $notifiable->timezone ?? 'Asia/Jakarta';
         $userNow  = Carbon::now($timezone);
@@ -66,7 +62,7 @@ class MorningDigestNotification extends Notification
             $i = 1;
             foreach ($this->completedTasks as $todo) {
                 $completedTime = $todo->completed_at 
-                    ? Carbon::parse($todo->completed_at)->setTimezone($timezone)->translatedFormat('H:i')
+                    ? Carbon::parse($todo->getRawOriginal('completed_at'), 'Asia/Jakarta')->setTimezone($timezone)->translatedFormat('H:i')
                     : '';
                 $timeSuffix = $completedTime ? " (Selesai jam {$completedTime})" : '';
                 $message .= "{$i}. ✅ *{$todo->title}*{$timeSuffix}\n";
@@ -83,14 +79,14 @@ class MorningDigestNotification extends Notification
                 $message .= "📅 *Hari Ini ({$todayCount} Tugas):*\n";
                 $i = 1;
                 foreach ($this->todayTasks as $todo) {
-                    $deadline = Carbon::parse($todo->deadline)->setTimezone($timezone);
+                    $deadline = Carbon::parse($todo->getRawOriginal('deadline'), 'Asia/Jakarta')->setTimezone($timezone);
                     $priority = match ($todo->priority) {
                         'high'   => '🔴 *Tinggi*',
                         'low'    => '🟢 *Rendah*',
                         default  => '🟡 *Sedang*',
                     };
                     $message .= "{$i}. [ID: #{$todo->id}] *{$todo->title}*\n"
-                              . "   ⏰ Deadline: *Jam {$deadline->format('H:i')} WIB*\n"
+                              . "   ⏰ Deadline: *Jam {$deadline->format('H:i')} {$timezone}*\n"
                               . "   🎯 Prioritas: {$priority}\n";
                     $i++;
                 }
@@ -101,14 +97,14 @@ class MorningDigestNotification extends Notification
                 $message .= "⏰ *Besok ({$tomorrowCount} Tugas):*\n";
                 $i = 1;
                 foreach ($this->tomorrowTasks as $todo) {
-                    $deadline = Carbon::parse($todo->deadline)->setTimezone($timezone);
+                    $deadline = Carbon::parse($todo->getRawOriginal('deadline'), 'Asia/Jakarta')->setTimezone($timezone);
                     $priority = match ($todo->priority) {
                         'high'   => '🔴 *Tinggi*',
                         'low'    => '🟢 *Rendah*',
                         default  => '🟡 *Sedang*',
                     };
                     $message .= "{$i}. [ID: #{$todo->id}] *{$todo->title}*\n"
-                              . "   ⏰ Deadline: *Jam {$deadline->format('H:i')} WIB*\n"
+                              . "   ⏰ Deadline: *Jam {$deadline->format('H:i')} {$timezone}*\n"
                               . "   🎯 Prioritas: {$priority}\n";
                     $i++;
                 }
@@ -122,12 +118,7 @@ class MorningDigestNotification extends Notification
             . "👉 Balas *DONE <id>* untuk menandai tugas selesai langsung dari chat ini.\n\n"
             . "_— Wassup Task_";
 
-        Http::withHeaders([
-            'Authorization' => config('services.fonnte.token'),
-        ])->post(config('services.fonnte.url'), [
-            'target'  => $notifiable->phone,
-            'message' => $message,
-        ]);
+        return $message;
     }
 }
 
