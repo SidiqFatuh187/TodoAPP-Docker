@@ -48,7 +48,7 @@ class DashboardController extends Controller
 
    $overdueTasks = Todo::where('user_id', $userId)
             ->whereNotNull('deadline')
-            ->where('deadline', '<', now())
+            ->where('deadline', '<', now('Asia/Jakarta'))
             ->whereIn('status', ['pending', 'active'])
             ->count();
             

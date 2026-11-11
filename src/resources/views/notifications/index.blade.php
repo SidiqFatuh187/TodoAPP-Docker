@@ -188,7 +188,7 @@
                         <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        <span>{{ $notif->created_at->format('d M Y \a\t H:i') }}</span>
+                        <span>{{ $notif->created_at->copy()->setTimezone(auth()->user()->timezone ?? 'Asia/Jakarta')->format('d M Y \a\t H:i') }}</span>
                     </div>
                 </div>
 

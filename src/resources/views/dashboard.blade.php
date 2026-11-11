@@ -114,7 +114,7 @@
                             @endif
                             @if($todo->deadline)
                                 <span class="text-xs {{ $todo->deadline->isPast() && $todo->status !== 'completed' ? 'text-red-400' : 'text-gray-400' }}">
-                                    · {{ $todo->deadline->format('d M') }}
+                                    · {{ $todo->deadline->copy()->setTimezone(auth()->user()->timezone ?? 'Asia/Jakarta')->format('d M') }}
                                 </span>
                             @endif
                         </div>
@@ -161,16 +161,19 @@
         <div class="space-y-4">
 
             {{-- Calendar mini --}}
+            @php
+                $userNow = now(auth()->user()->timezone ?? 'Asia/Jakarta');
+            @endphp
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                <h3 class="text-sm font-semibold text-gray-700 mb-3">📅 {{ now()->format('F Y') }}</h3>
-                <p class="text-3xl font-bold text-gray-800">{{ now()->format('d') }}</p>
-                <p class="text-xs text-gray-400 mt-0.5">{{ now()->format('l') }}</p>
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">📅 {{ $userNow->format('F Y') }}</h3>
+                <p class="text-3xl font-bold text-gray-800">{{ $userNow->format('d') }}</p>
+                <p class="text-xs text-gray-400 mt-0.5">{{ $userNow->format('l') }}</p>
                 <div class="grid grid-cols-7 gap-1 mt-4">
                     @foreach(['M','T','W','T','F','S','S'] as $day)
                         <div class="text-center text-xs text-gray-400 font-medium">{{ $day }}</div>
                     @endforeach
-                    @for($i = 1; $i <= now()->daysInMonth; $i++)
-                        <div class="text-center text-xs py-1 rounded-lg {{ $i == now()->day ? 'bg-blue-600 text-white font-bold' : 'text-gray-500 hover:bg-gray-50' }}">
+                    @for($i = 1; $i <= $userNow->daysInMonth; $i++)
+                        <div class="text-center text-xs py-1 rounded-lg {{ $i == $userNow->day ? 'bg-blue-600 text-white font-bold' : 'text-gray-500 hover:bg-gray-50' }}">
                             {{ $i }}
                         </div>
                     @endfor

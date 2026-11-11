@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use App\Models\Todo;
 use App\Models\Category;
+use Carbon\Carbon;
 use App\Listeners\LogTaskActivity;
 
 class TodoController extends Controller
@@ -47,6 +49,14 @@ class TodoController extends Controller
             ->firstOrFail();
             
         return view('todo.show', compact('title', 'subtitle', 'todo'));
+    }
+
+    public function download($id)
+    {
+        $todo = Todo::where('user_id', Auth::id())->where('id', $id)->firstOrFail();
+        abort_unless($todo->file_path && Storage::disk('local')->exists($todo->file_path), 404);
+
+        return Storage::disk('local')->download($todo->file_path, $todo->file_name);
     }
     public function search(Request $request)
     {
@@ -93,9 +103,9 @@ class TodoController extends Controller
         $request->validate([
             'title'       => 'required|string|max:255',
             'description' => 'nullable|string',
-            'category_id' => 'nullable|exists:category,id',
+            'category_id' => ['nullable', Rule::exists('category', 'id')->where('user_id', Auth::id())],
             'priority'    => 'required|in:low,medium,high',
-            'deadline'    => 'nullable|date|after_or_equal:today',
+            'deadline'    => 'nullable|date|after_or_equal:'.now($request->user()->timezone ?? 'Asia/Jakarta')->toDateString(),
             'file'        => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg|max:5120',
         ], [
             'title.required'          => 'Judul task wajib diisi.',
@@ -108,23 +118,40 @@ class TodoController extends Controller
         $filepath = null;
         $filename = null;
 
-        if ($request->hasFile('file')) {
-            $file     = $request->file('file');
-            $filename = $file->getClientOriginalName();
-            $filepath = $file->store('todo-files', 'public');
-        }
+        try {
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                $filename = $file->getClientOriginalName();
+                $filepath = $file->store('todo-files', 'local');
+                if (!$filepath) {
+                    throw new \RuntimeException('Unable to store task attachment.');
+                }
+            }
 
-        Todo::create([
-            'user_id'     => Auth::id(),
-            'category_id' => $request->category_id,
-            'title'       => $request->title,
-            'description' => $request->description,
-            'priority'    => $request->priority,
-            'status'      => 'pending',
-            'deadline'    => $request->deadline,
-            'file_path'   => $filepath,
-            'file_name'   => $filename,
-        ]);
+            $todo = Todo::create([
+                'user_id'     => Auth::id(),
+                'category_id' => $request->category_id,
+                'title'       => $request->title,
+                'description' => $request->description,
+                'priority'    => $request->priority,
+                'status'      => 'pending',
+                'deadline'    => $request->filled('deadline')
+                    ? Carbon::parse($request->input('deadline'), $request->user()->timezone ?? 'Asia/Jakarta')->setTimezone('Asia/Jakarta')
+                    : null,
+                'file_path'   => $filepath,
+                'file_name'   => $filename,
+            ]);
+            if (!$todo->exists) {
+                throw new \RuntimeException('Unable to save task.');
+            }
+        } catch (\Throwable $e) {
+            if ($filepath) {
+                Storage::disk('local')->delete($filepath);
+            }
+            report($e);
+
+            return back()->withInput()->with('error', 'Gagal menambahkan task, coba lagi.');
+        }
 
         // Log activity
         (new LogTaskActivity)->logCreate(Auth::id());
@@ -148,7 +175,7 @@ class TodoController extends Controller
         $request->validate([
             'title'       => 'required|string|max:255',
             'description' => 'nullable|string',
-            'category_id' => 'nullable|exists:category,id',
+            'category_id' => ['nullable', Rule::exists('category', 'id')->where('user_id', Auth::id())],
             'priority'    => 'required|in:low,medium,high',
             'status'      => 'required|in:active,completed,pending',
             'deadline'    => 'nullable|date',
@@ -157,45 +184,62 @@ class TodoController extends Controller
 
         $todo = Todo::where('user_id', Auth::id())->where('id', $id)->firstOrFail();
 
-        // Handle file upload
-        if ($request->hasFile('file')) {
-            if ($todo->file_path) {
-                Storage::disk('public')->delete($todo->file_path);
-            }
-            $todo->file_name = $request->file('file')->getClientOriginalName();
-            $todo->file_path = $request->file('file')->store('todo-files', 'public');
-        }
+        $oldPath = $todo->file_path;
+        $newPath = null;
+        $filename = $todo->file_name;
+        $wasCompleted = $todo->status !== 'completed' && $request->status === 'completed';
 
         try {
-            $wasCompleted = $todo->status !== 'completed' && $request->status === 'completed';
+            if ($request->hasFile('file')) {
+                $filename = $request->file('file')->getClientOriginalName();
+                $newPath = $request->file('file')->store('todo-files', 'local');
+                if (!$newPath) {
+                    throw new \RuntimeException('Unable to store task attachment.');
+                }
+            }
 
-            $todo->update([
+            $saved = $todo->update([
                 'category_id'  => $request->category_id,
                 'title'        => $request->title,
                 'description'  => $request->description,
                 'priority'     => $request->priority,
                 'status'       => $request->status,
-                'deadline'     => $request->deadline,
+                'deadline'     => $request->filled('deadline')
+                    ? Carbon::parse($request->input('deadline'), $request->user()->timezone ?? 'Asia/Jakarta')->setTimezone('Asia/Jakarta')
+                    : null,
                 'completed_at' => $request->status === 'completed' ? now() : null,
-                'file_path'    => $todo->file_path,
-                'file_name'    => $todo->file_name,
+                'file_path'    => $newPath ?: $oldPath,
+                'file_name'    => $filename,
             ]);
-
-            // Log activity
-            if ($wasCompleted) {
-                (new LogTaskActivity)->logComplete(Auth::id());
-            } else {
-                (new LogTaskActivity)->logUpdate(Auth::id());
+            if (!$saved) {
+                throw new \RuntimeException('Unable to save task.');
             }
+        } catch (\Throwable $e) {
+            if ($newPath) {
+                Storage::disk('local')->delete($newPath);
+            }
+            report($e);
 
-            return redirect()->route('todo.index')->with('success', 'Task berhasil diperbarui.');
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Gagal memperbarui task, coba lagi.');
+            return redirect()->back()->withInput()->with('error', 'Gagal memperbarui task, coba lagi.');
         }
+
+        if ($newPath && $oldPath) {
+            Storage::disk('local')->delete($oldPath);
+        }
+
+        if ($wasCompleted) {
+            (new LogTaskActivity)->logComplete(Auth::id());
+        } else {
+            (new LogTaskActivity)->logUpdate(Auth::id());
+        }
+
+        return redirect()->route('todo.index')->with('success', 'Task berhasil diperbarui.');
     }
 
     public function updateStatus(Request $request, $id)
     {
+        $request->validate(['status' => ['sometimes', 'required', Rule::in(['active', 'completed', 'pending'])]]);
+
         $todo = Todo::where('user_id', Auth::id())->where('id', $id)->firstOrFail();
 
         try {
@@ -233,11 +277,12 @@ class TodoController extends Controller
         $todo = Todo::where('user_id', Auth::id())->where('id', $id)->firstOrFail();
 
         try {
-            if ($todo->file_path && Storage::disk('public')->exists($todo->file_path)) {
-                Storage::disk('public')->delete($todo->file_path);
+            if (!$todo->delete()) {
+                throw new \RuntimeException('Unable to delete task.');
             }
-
-            $todo->delete();
+            if ($todo->file_path) {
+                Storage::disk('local')->delete($todo->file_path);
+            }
             return redirect()->route('todo.index')->with('success', 'Task berhasil dihapus.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Gagal menghapus task, coba lagi.');

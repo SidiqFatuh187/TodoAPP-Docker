@@ -45,7 +45,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         Route::post('/register', [RegisterController::class, 'store'])->name('register.store');
     });
 
-Route::middleware(['auth', 'timezone'])->group(function () {
+Route::middleware('auth')->group(function () {
         // dashboard route
      Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -68,6 +68,7 @@ Route::middleware(['auth', 'timezone'])->group(function () {
         Route::put('/update/{id}', [TodoController::class, 'update'])->name('update');
         Route::patch('/status/{id}', [TodoController::class, 'updateStatus'])->name('status');
         Route::delete('/delete/{id}', [TodoController::class, 'destroy'])->name('delete');
+        Route::get('/attachment/{id}', [TodoController::class, 'download'])->name('download');
         Route::get('/{id}', [TodoController::class, 'show'])->name('show');        
     });
 

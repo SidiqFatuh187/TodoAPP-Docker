@@ -100,7 +100,7 @@
                     Deadline <span class="text-gray-400 font-normal">(opsional)</span>
                 </label>
                 <input type="datetime-local" id="deadline" name="deadline"
-                    value="{{ old('deadline', $todo->deadline ? $todo->deadline->format('Y-m-d\TH:i') : '') }}"
+                    value="{{ old('deadline', $todo->deadline ? $todo->deadline->copy()->setTimezone(auth()->user()->timezone ?? 'Asia/Jakarta')->format('Y-m-d\TH:i') : '') }}"
                     class="w-full px-4 py-2.5 rounded-xl border @error('deadline') border-red-400 bg-red-50 @else border-gray-200 @enderror text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
                 @error('deadline')
                     <p class="mt-1.5 text-xs text-red-500">{{ $message }}</p>

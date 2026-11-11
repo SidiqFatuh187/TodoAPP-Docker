@@ -177,7 +177,7 @@
                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
-                                    {{ $isOverdue ? 'Telat · ' : '' }}{{ $todo->deadline->format('d M Y') }}
+                                    {{ $isOverdue ? 'Telat · ' : '' }}{{ $todo->deadline->copy()->setTimezone(auth()->user()->timezone ?? 'Asia/Jakarta')->format('d M Y') }}
                                 </span>
                             @endif
 
@@ -190,7 +190,7 @@
 
                     {{-- File Attachment --}}  
                     @if($todo->file_path)
-                        <a href="{{ Storage::url($todo->file_path) }}" target="_blank"
+                        <a href="{{ route('todo.download', $todo->id) }}" target="_blank"
                             class="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 transition-colors">
                             <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
