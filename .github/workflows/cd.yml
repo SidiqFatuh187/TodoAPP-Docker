@@ -8,99 +8,54 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login ke GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix=master-
-            type=semver,pattern={{version}}
-
-      - name: Build & Push image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./src
-          file: ./docker/php/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   deploy:
-    needs: build-and-push
     runs-on: ubuntu-latest
-
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     steps:
-      - name: Deploy ke VPS via SSH
+      - name: Deploy tested commit via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          envs: DEPLOY_SHA
+          command_timeout: 30m
           script: |
+            set -eu
             cd /var/www/claro
-
-            # Stash local changes dulu biar pull tidak abort
-            git stash
-
-            # Pull latest code
-            git pull origin master
-
-            # Login ke GHCR & pull image terbaru
-            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
-            docker compose pull
-
-            # Rebuild & restart container
-            docker compose up -d --remove-orphans
-
-            # Install dependencies & build assets
-            cd /var/www/claro/src
-            composer install --no-dev --optimize-autoloader
-            npm install && npm run build
-
-            # Artisan commands
-            docker exec todo_php php artisan migrate --force
-            docker exec todo_php php artisan config:clear
-            docker exec todo_php php artisan cache:clear
-            docker exec todo_php php artisan storage:link
-
-      - name: Notify jika gagal
-        if: failure()
-        run: echo "❌ Deployment Wassup Task gagal!"
+            test -z "$(git status --porcelain --untracked-files=normal)" || {
+              echo 'Deployment stopped: preserve and resolve local server changes first.'
+              exit 1
+            }
+            git fetch origin master
+            test "$(git rev-parse origin/master)" = "$DEPLOY_SHA" || {
+              echo 'Deployment skipped: a newer commit is already on master.'
+              exit 0
+            }
+            docker compose exec -T php php artisan down
+            docker compose stop scheduler worker
+            git checkout --detach "$DEPLOY_SHA"
+            docker compose build php scheduler worker
+            docker compose run --rm --no-deps php composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+            docker compose run --rm --no-deps php npm ci
+            docker compose run --rm --no-deps php npm run build
+            docker compose up -d --no-deps php nginx
+            docker compose exec -T php php artisan config:clear
+            docker compose exec -T php php artisan migrate --force
+            docker compose exec -T php php artisan tasks:privatize-attachments
+            docker compose exec -T php php artisan storage:link
+            docker compose exec -T nginx nginx -s reload
+            docker compose exec -T php php artisan up
+            docker compose up -d --no-deps scheduler worker
